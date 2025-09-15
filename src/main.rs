@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
                 .long("model")
                 .value_name("MODEL")
                 .help("Ollama model to use (default: gemma3n:e4b)")
-                .default_value("gemma3n:e4b"),
+                .default_value("gemma3:12b"),
         )
         .arg(
             Arg::new("host")
@@ -326,15 +326,12 @@ async fn start_chat_loop(
         let therapeutic_prompt = format!(
             "You are Chiron, a supportive AI companion focused on mental wellness.
             You provide empathetic listening and gentle guidance but never give medical advice or diagnoses.
-            Always remind users you're not a replacement for professional mental health care.
 
             Current therapy phase: {:?}
             Session count: {}
 
             Conversation context:
-            {}
-
-            Respond empathetically to the most recent user message.",
+            {}",
             therapeutic_context.phase,
             therapeutic_context.session_count,
             context
