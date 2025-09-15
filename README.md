@@ -17,17 +17,66 @@ I'm experimenting with training small models on mental health materials like:
 
 Everything runs locally via Ollama - no sending your thoughts to the cloud and big tech to turn into ads/spy on you!
 
-## Current State
+## Current Features
 
-Just getting started. Have some Rust boilerplate and ideas about connecting to Ollama models.
+This thing actually works now! Here's what you get:
+
+- **Real-time streaming responses** - See text appear as the AI generates it, just like ChatGPT
+- **Session persistence** - Pick up conversations where you left off
+- **Training data export** - Build datasets for fine-tuning your own models
+- **Safety systems** - Crisis detection and content filtering
+- **Clean interface** - No log spam, proper text formatting, progress indicators
+- **Memory management** - Automatically cleans up Ollama resources when you exit
+
+## Usage
 
 ```bash
-# If you want to mess around with it:
+# Basic usage:
 ollama serve
-ollama pull gemma3n:e4b
+ollama pull gemma3n:e4b  # or llama3.2:1b
 cargo run
+
+# Testing without Ollama:
+cargo run -- --mock
+
+# Temporary sessions (don't save anything):
+cargo run -- --no-save
+
+# Resume a previous conversation:
+cargo run -- --list-sessions
+cargo run -- --resume <SESSION_ID>
+
+# Export training data:
+cargo run -- --export-training training_data.jsonl
 ```
+
+## What's New
+
+The boilerplate days are over! Recent additions include:
+
+- **Streaming interface** with real-time progress indicators
+- **Session management** system with persistence
+- **Safety-first design** with crisis detection
+- **Clean UI** without debug log pollution
+- **Automatic resource cleanup** for Ollama memory management
+- **Multiple usage modes** (normal, mock, temporary sessions)
+
+Everything still runs 100% locally - your conversations stay on your machine.
+
+## Architecture
+
+Simple and modular:
+
+- **Ollama client** for local SLM inference
+- **Session storage** with SQLite-like persistence
+- **Safety systems** for crisis detection and content filtering
+- **Therapeutic context** tracking for better conversations
+- **Training data export** for model fine-tuning
 
 ## Disclaimer
 
-This is just an experiment! Don't use it for actual mental health crises or as a replacement for real therapy.
+This is still an experiment! Don't use it for actual mental health crises or as a replacement for real therapy. For immediate help:
+
+- National Suicide Prevention Lifeline: 988
+- Crisis Text Line: Text HOME to 741741
+- Emergency Services: 911
