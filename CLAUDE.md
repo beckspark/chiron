@@ -1,62 +1,43 @@
 # Chiron Mental Health SLM Project
 
+IMPORTANT: Review Claude Code best practices at https://www.anthropic.com/engineering/claude-code-best-practices before making changes to this project.
+
 ## Bash Commands
 - `cargo build`: Build the project
 - `cargo run`: Run the main application
 - `cargo test`: Run all tests
 - `cargo clippy`: Run linter
 - `cargo fmt`: Format code
-- `ollama serve`: Start Ollama server (required for inference)
-- `ollama pull gemma3n:e4b`: Download Gemma 3N E4B model
+- `cargo run -- --mock`: Test without Ollama
+- `cargo run -- --no-save`: Run without saving session data (temporary session)
+- `cargo run -- --list-sessions`: View saved sessions
+- `cargo run -- --resume <SESSION_ID>`: Continue previous session
+- `cargo run -- --export-training <FILE>`: Export training data
 
 ## Architecture
 - Local SLM inference via Ollama (gemma3n:e4b or llama3.2:1b)
+- Real-time streaming responses with progress indicators
 - Modular agent system: Intake → Assessment → Intervention → Monitoring
-- Safety-first design with crisis detection at every layer
-- No cloud dependencies, fully local processing
-
-## Project Structure
-```
-src/
-  agents/     - Agent implementations (intake, assessment, intervention, monitoring)
-  inference/  - Ollama client and model interface
-  safety/     - Crisis detection and safety filters
-  dialogue/   - Therapeutic conversation management
-  main.rs     - CLI application entry point
-```
-
-## Technical Stack
-- Ollama for local SLM inference
-- reqwest for HTTP client to Ollama API
-- tokio for async runtime
-- serde for JSON serialization
-- clap for CLI interface
+- Safety-first design with crisis detection
+- Session persistence with training data export for model fine-tuning
 
 ## Development Status
 
 ### Completed
-- Mental health SLM requirements analysis
-- Core architecture design
-- Ollama integration architecture
+- Ollama client implementation with async interface
+- Session management with persistence and training data export
+- Basic safety systems with crisis detection
+- Mock mode for testing
 
 ### In Progress
-- Project tracking documentation
+- Enhanced safety systems with sophisticated crisis detection
+- Modular agent system (intake, assessment, intervention, monitoring)
 
 ### Pending
-- Foundational Rust dependencies setup
-- Ollama client implementation
-- Safety architecture with crisis detection
-- Therapeutic dialogue management
-
-## Safety Requirements
-IMPORTANT: All implementations must prioritize safety over functionality
-- Crisis detection at all agent levels
-- Human handoff protocols
-- Explicit AI limitation communication
-- Never provide medical advice or diagnoses
+- Comprehensive testing framework
+- Logging and monitoring
 
 ## Code Style
 - Use standard Rust formatting (cargo fmt)
-- Implement proper error handling with Result types
-- Use async/await for all I/O operations
-- Document all public APIs
+- Proper error handling with Result types
+- Async/await for all I/O operations
