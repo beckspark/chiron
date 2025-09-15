@@ -8,6 +8,9 @@ use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load environment variables from .env file if it exists
+    dotenvy::dotenv().ok();
+
     // Only initialize tracing if RUST_LOG is set (for debugging)
     if std::env::var("RUST_LOG").is_ok() {
         tracing_subscriber::fmt::init();
@@ -20,15 +23,13 @@ async fn main() -> Result<()> {
             Arg::new("model")
                 .long("model")
                 .value_name("MODEL")
-                .help("Ollama model to use (default: gemma3n:e4b)")
-                .default_value("gemma3:12b"),
+                .help("Ollama model to use (can also be set via OLLAMA_MODEL env var)"),
         )
         .arg(
             Arg::new("host")
                 .long("host")
                 .value_name("HOST")
-                .help("Ollama server host")
-                .default_value("http://localhost:11434"),
+                .help("Ollama server host (can also be set via OLLAMA_HOST env var)"),
         )
         .arg(
             Arg::new("resume")
@@ -62,8 +63,16 @@ async fn main() -> Result<()> {
         )
         .get_matches();
 
-    let model = matches.get_one::<String>("model").unwrap();
-    let host = matches.get_one::<String>("host").unwrap();
+    // Get configuration values with fallbacks to environment variables or defaults
+    let model = matches.get_one::<String>("model")
+        .map(|s| s.clone())
+        .or_else(|| std::env::var("OLLAMA_MODEL").ok())
+        .unwrap_or_else(|| "gemma3n:e4b".to_string());
+
+    let host = matches.get_one::<String>("host")
+        .map(|s| s.clone())
+        .or_else(|| std::env::var("OLLAMA_HOST").ok())
+        .unwrap_or_else(|| "http://localhost:11434".to_string());
     let no_save = matches.get_flag("no-save");
 
     // Initialize session storage (skip if no-save flag is set)
@@ -102,7 +111,7 @@ async fn main() -> Result<()> {
         print!("🔌 Connecting to Ollama...");
         std::io::stdout().flush().unwrap();
 
-        match test_ollama_connection(&ollama_client, model).await {
+        match test_ollama_connection(&ollama_client, &model).await {
             Ok(_) => {
                 println!(" ✅");
             }
@@ -169,7 +178,7 @@ async fn main() -> Result<()> {
     let chat_result = tokio::select! {
         result = start_chat_loop(
             ollama_client.clone(),
-            model,
+            &model,
             &mut session,
             session_storage.as_ref(),
             use_mock,
