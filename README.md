@@ -50,19 +50,6 @@ cargo run -- --resume <SESSION_ID>
 cargo run -- --export-training training_data.jsonl
 ```
 
-## What's New
-
-The boilerplate days are over! Recent additions include:
-
-- **Streaming interface** with real-time progress indicators
-- **Session management** system with persistence
-- **Safety-first design** with crisis detection
-- **Clean UI** without debug log pollution
-- **Automatic resource cleanup** for Ollama memory management
-- **Multiple usage modes** (normal, mock, temporary sessions)
-
-Everything still runs 100% locally - your conversations stay on your machine.
-
 ## Architecture
 
 Simple and modular:
@@ -75,8 +62,4 @@ Simple and modular:
 
 ## Disclaimer
 
-This is still an experiment! Don't use it for actual mental health crises or as a replacement for real therapy. For immediate help:
-
-- National Suicide Prevention Lifeline: 988
-- Crisis Text Line: Text HOME to 741741
-- Emergency Services: 911
+This is an experiment! Don't use it for actual mental health crises or as a replacement for real therapy.
