@@ -25,6 +25,7 @@ This thing actually works now! Here's what you get:
 - **Session persistence** - Pick up conversations where you left off
 - **Training data export** - Build datasets for fine-tuning your own models
 - **Safety systems** - Crisis detection and content filtering
+- **Wikipedia research agent** - Look up mental health topics with automatic analysis
 - **Clean interface** - No log spam, proper text formatting, progress indicators
 - **Memory management** - Automatically cleans up Ollama resources when you exit
 
@@ -48,6 +49,11 @@ cargo run -- --resume <SESSION_ID>
 
 # Export training data:
 cargo run -- --export-training training_data.jsonl
+
+# Trigger research (use explicit research language):
+# "Can you research CBT techniques?"
+# "Look up information about anxiety management"
+# "Let's research puer aeternus"
 ```
 
 ## Architecture
@@ -57,6 +63,7 @@ Simple and modular:
 - **Ollama client** for local SLM inference
 - **Session storage** with SQLite-like persistence
 - **Safety systems** for crisis detection and content filtering
+- **Wikipedia research agent** using MediaWiki API for mental health topic lookup
 - **Therapeutic context** tracking for better conversations
 - **Training data export** for model fine-tuning
 

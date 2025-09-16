@@ -1,10 +1,48 @@
 use chiron::dialogue::therapeutic::TherapyPhase;
+use chiron::agents::{AgentContext, ResearchAgent};
 use chiron::Result;
 use clap::{Arg, Command};
+use regex;
+use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use tokio::signal;
 use tracing_subscriber;
+
+
+fn detect_research_request(input: &str) -> Option<String> {
+    let input_lower = input.to_lowercase();
+
+    // Check for URLs
+    if input_lower.contains("http://") || input_lower.contains("https://") {
+        // Extract URLs for research
+        let url_regex = regex::Regex::new(r"https?://[^\s)]+").unwrap();
+        if let Some(url) = url_regex.find(input) {
+            return Some(url.as_str().to_string());
+        }
+    }
+
+    // Check for explicit research requests
+    let research_patterns = [
+        "research", "look up", "find information", "search for",
+        "more about", "definition of", "can you research",
+        "let's research", "research this"
+    ];
+
+    for pattern in &research_patterns {
+        if input_lower.contains(pattern) {
+            // Extract the topic after the research keyword
+            if let Some(start_idx) = input_lower.find(pattern) {
+                let after_keyword = &input[start_idx + pattern.len()..].trim();
+                if !after_keyword.is_empty() {
+                    return Some(after_keyword.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -236,6 +274,25 @@ async fn start_chat_loop(
     let crisis_detector = chiron::safety::CrisisDetector::new();
     let safety_filters = chiron::safety::SafetyFilters::new();
 
+    // Initialize research agent if enabled
+    let research_enabled = std::env::var("ENABLE_RESEARCH")
+        .unwrap_or_else(|_| "false".to_string())
+        .to_lowercase() == "true";
+
+    let research_mode = std::env::var("RESEARCH_MODE")
+        .unwrap_or_else(|_| "ask".to_string())
+        .to_lowercase();
+
+    let research_agent = if research_enabled {
+        Some(ResearchAgent::new(client.clone()))
+    } else {
+        None
+    };
+
+    if research_enabled {
+        println!("🔍 Research functionality enabled (mode: {})", research_mode);
+    }
+
     // Get therapeutic context from session
     let mut therapeutic_context = chiron::dialogue::TherapeuticContext::new();
     therapeutic_context.phase = match session.therapeutic_metadata.therapy_phase.as_str() {
@@ -315,6 +372,8 @@ async fn start_chat_loop(
         // Filter and process input
         let filtered_input = safety_filters.filter_input(input)?;
 
+        // Research context will now be handled within the unified response
+
         // Add user message to session with metadata
         let crisis_indicators = if crisis_detector.detect_crisis(input)? {
             vec!["crisis_detected".to_string()]
@@ -330,8 +389,55 @@ async fn start_chat_loop(
             crisis_indicators,
         );
 
-        // Build therapeutic prompt with context
+        // Simple pattern-based research detection
+        let research_topic = detect_research_request(&filtered_input);
+
+        // Build natural therapeutic prompt
         let context = session.get_context()?;
+        let research_context = if let Some(ref topic) = research_topic {
+            if let Some(ref agent) = research_agent {
+                if research_mode == "always" || research_mode == "ask" {
+                    println!("🔬 Research request detected: {}", topic);
+
+                    let agent_context = AgentContext {
+                        user_input: topic.clone(),
+                        session_id: session.id.to_string(),
+                        therapeutic_phase: session.therapeutic_metadata.therapy_phase.clone(),
+                        session_count: session.therapeutic_metadata.session_count,
+                        conversation_history: session.messages.iter()
+                            .map(|m| m.content.clone())
+                            .collect(),
+                        shared_resources: HashMap::new(),
+                        ollama_client: client.clone(),
+                        current_model: model.to_string(),
+                    };
+
+                    let request = chiron::agents::protocol::AgentRequest {
+                        input: topic.clone(),
+                        context: agent_context,
+                        parameters: HashMap::new(),
+                    };
+
+                    match agent.research_topic(topic, &request).await {
+                        Ok(response) => {
+                            println!("\n{}\n", response.content);
+                            format!("\nResearch Context: {}", response.content)
+                        }
+                        Err(e) => {
+                            println!("❌ Research error: {}", e);
+                            String::new()
+                        }
+                    }
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
         let therapeutic_prompt = format!(
             "You are Chiron, a supportive AI companion focused on mental wellness.
             You provide empathetic listening and gentle guidance but never give medical advice or diagnoses.
@@ -340,13 +446,14 @@ async fn start_chat_loop(
             Session count: {}
 
             Conversation context:
-            {}",
+            {}{}",
             therapeutic_context.phase,
             therapeutic_context.session_count,
-            context
+            context,
+            research_context
         );
 
-        let (response, already_printed) = if use_mock {
+        let (raw_response, already_printed) = if use_mock {
             print!("Chiron: ");
             io::stdout().flush().unwrap();
             (generate_mock_response(&filtered_input, &therapeutic_context), false)
@@ -355,7 +462,7 @@ async fn start_chat_loop(
             (client.generate_with_progress(model, &therapeutic_prompt, true).await?, true)
         };
 
-        let filtered_response = safety_filters.filter_output(&response)?;
+        let filtered_response = safety_filters.filter_output(&raw_response)?;
 
         if !already_printed {
             // Format response with proper line wrapping and indentation for mock mode

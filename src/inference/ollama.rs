@@ -17,6 +17,7 @@ pub struct GenerateResponse {
     pub done: bool,
 }
 
+#[derive(Debug)]
 pub struct OllamaClient {
     client: Client,
     base_url: String,
