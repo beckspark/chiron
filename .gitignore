@@ -2,3 +2,7 @@
 *.gguf
 /models/
 /data/
+.fastembed_cache/
+*.db
+*.db-shm
+*.db-wal
