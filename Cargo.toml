@@ -13,6 +13,13 @@ tokenizers = "0.21"
 # Agent framework
 rig-core = "0.30"
 
+# RAG: vector store + local embeddings
+rig-sqlite = "0.1"
+rig-fastembed = "0.2"
+tokio-rusqlite = "0.6"
+rusqlite = "0.32"
+sqlite-vec = "0.1"
+
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 

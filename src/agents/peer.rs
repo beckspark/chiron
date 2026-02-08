@@ -1,4 +1,5 @@
 use rig::agent::{Agent, AgentBuilder};
+use rig::vector_store::VectorStoreIndexDyn;
 
 use crate::provider::completion::CandleCompletionModel;
 
@@ -46,10 +47,28 @@ When someone expresses crisis thoughts (self-harm, suicide):
 
 You are a supportive peer, not a therapist. Keep responses warm, genuine, and focused on the person's experience. Use a mix of reflections, open questions, and affirmations to show understanding."#;
 
-/// Builds a peer support coach agent using the given Candle completion model.
+/// Builds a peer support coach agent without RAG context (bench mode).
 pub fn build_peer_coach(model: CandleCompletionModel) -> Agent<CandleCompletionModel> {
     AgentBuilder::new(model)
         .preamble(MI_PEER_SUPPORT_PREAMBLE)
+        .temperature(0.6)
+        .max_tokens(512)
+        .build()
+}
+
+/// Builds a peer support coach agent with RAG from the MI knowledge store.
+///
+/// The agent automatically embeds each user query, searches the knowledge store
+/// for the top `top_k` matching MI principles/techniques, and injects them as
+/// context alongside the system preamble.
+pub fn build_peer_coach_with_rag(
+    model: CandleCompletionModel,
+    knowledge_index: impl VectorStoreIndexDyn + Send + Sync + 'static,
+    top_k: usize,
+) -> Agent<CandleCompletionModel> {
+    AgentBuilder::new(model)
+        .preamble(MI_PEER_SUPPORT_PREAMBLE)
+        .dynamic_context(top_k, knowledge_index)
         .temperature(0.6)
         .max_tokens(512)
         .build()
