@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::memory::store::MiKnowledge;
 
-/// Loads MI principles from the Plotinus knowledge base and flattens into embeddable chunks.
+/// Loads MI principles from the knowledge base and flattens into embeddable chunks.
 ///
 /// Parses `mi_principles.json` from the given directory and creates one `MiKnowledge`
 /// chunk per concept (MI spirit component, OARS skill, change talk type, etc.).

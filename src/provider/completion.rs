@@ -130,8 +130,21 @@ fn format_request(request: &CompletionRequest) -> String {
         prompt.push_str("<|start_header_id|>system<|end_header_id|>\n\n");
         prompt.push_str(preamble);
 
-        // Append any context documents to the system message
+        // Append any context documents (RAG results) to the system message
         if !request.documents.is_empty() {
+            tracing::debug!(
+                document_count = request.documents.len(),
+                document_ids = ?request.documents.iter().map(|d| d.id.as_str()).collect::<Vec<_>>(),
+                "Injecting RAG context into prompt"
+            );
+            for doc in &request.documents {
+                tracing::trace!(
+                    doc_id = doc.id,
+                    doc_text_len = doc.text.len(),
+                    doc_text_preview = &doc.text[..doc.text.len().min(120)],
+                    "RAG document"
+                );
+            }
             prompt.push_str("\n\n# Reference Context\n");
             for doc in &request.documents {
                 prompt.push_str(&format!("{}\n", doc));
@@ -485,6 +498,7 @@ fn run_inference(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rig::completion::Document;
     use rig::OneOrMany;
 
     #[test]
@@ -536,4 +550,76 @@ mod tests {
         assert!(formatted.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
     }
 
+    #[test]
+    fn test_format_request_with_rag_documents() {
+        let request = CompletionRequest {
+            preamble: Some("You are a peer coach.".to_string()),
+            chat_history: OneOrMany::one(Message::user("I want to stop drinking")),
+            documents: vec![
+                Document {
+                    id: "oars_reflections".into(),
+                    text: "OARS - Reflections\nSimple reflections repeat back what the person said."
+                        .into(),
+                    additional_props: [("category".into(), "oars".into())].into(),
+                },
+                Document {
+                    id: "change_talk_prep_desire".into(),
+                    text: "Change Talk - Desire\nStatements about wanting change.".into(),
+                    additional_props: [("category".into(), "change_talk".into())].into(),
+                },
+            ],
+            tools: vec![],
+            temperature: None,
+            max_tokens: None,
+            tool_choice: None,
+            additional_params: None,
+        };
+
+        let formatted = format_request(&request);
+
+        // RAG context section exists between preamble and eot
+        assert!(formatted.contains("# Reference Context"));
+
+        // Both documents injected with their IDs and content
+        assert!(formatted.contains("oars_reflections"));
+        assert!(formatted.contains("OARS - Reflections"));
+        assert!(formatted.contains("change_talk_prep_desire"));
+        assert!(formatted.contains("Change Talk - Desire"));
+
+        // Document metadata is included
+        assert!(formatted.contains("category"));
+
+        // Context appears inside the system block, before eot
+        let system_block_start = formatted.find("system<|end_header_id|>").unwrap();
+        let system_eot = formatted[system_block_start..].find("<|eot_id|>").unwrap()
+            + system_block_start;
+        let ref_context_pos = formatted.find("# Reference Context").unwrap();
+        assert!(
+            ref_context_pos > system_block_start && ref_context_pos < system_eot,
+            "RAG context must be inside system block"
+        );
+
+        // User message still present after system block
+        assert!(formatted.contains("I want to stop drinking"));
+    }
+
+    #[test]
+    fn test_format_request_no_documents_no_context_section() {
+        let request = CompletionRequest {
+            preamble: Some("System prompt".to_string()),
+            chat_history: OneOrMany::one(Message::user("Hello")),
+            documents: vec![],
+            tools: vec![],
+            temperature: None,
+            max_tokens: None,
+            tool_choice: None,
+            additional_params: None,
+        };
+
+        let formatted = format_request(&request);
+        assert!(
+            !formatted.contains("# Reference Context"),
+            "No context section when documents are empty"
+        );
+    }
 }
