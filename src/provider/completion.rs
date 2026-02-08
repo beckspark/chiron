@@ -3,7 +3,6 @@ use std::time::Instant;
 
 use candle_core::Tensor;
 use candle_transformers::generation::LogitsProcessor;
-use futures::stream;
 use rig::completion::{
     AssistantContent, CompletionError, CompletionModel, CompletionRequest, CompletionResponse,
     Message, Usage,
@@ -11,9 +10,11 @@ use rig::completion::{
 use rig::streaming::{RawStreamingChoice, StreamingCompletionResponse};
 use rig::OneOrMany;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
-use super::ModelRegistry;
 use super::CandleProvider;
+use super::ModelRegistry;
 
 /// Response type for non-streaming completions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,23 +93,21 @@ impl CompletionModel for CandleCompletionModel {
         &self,
         request: CompletionRequest,
     ) -> Result<StreamingCompletionResponse<Self::StreamingResponse>, CompletionError> {
-        // For local models, we don't have true token-by-token streaming from the model
-        // since Candle's forward pass is synchronous. We generate the full response
-        // then emit it as a single streaming chunk.
-        let response = self.completion(request).await?;
-        let text = response.raw_response.text.clone();
-        let tokens = response.raw_response.tokens_generated;
+        let registry = self.registry.clone();
+        let model_id = self.model_id.clone();
+        let prompt_text = format_request(&request);
 
-        let chunks = vec![
-            Ok(RawStreamingChoice::Message(text)),
-            Ok(RawStreamingChoice::FinalResponse(CandleStreamingResponse {
-                tokens_generated: tokens,
-            })),
-        ];
+        let (tx, rx) = mpsc::channel::<Result<RawStreamingChoice<CandleStreamingResponse>, CompletionError>>(32);
 
-        Ok(StreamingCompletionResponse::stream(Box::pin(
-            stream::iter(chunks),
-        )))
+        tokio::task::spawn_blocking(move || {
+            let result = run_inference_streaming(&registry, &model_id, &prompt_text, &tx);
+            if let Err(e) = result {
+                let _ = tx.blocking_send(Err(CompletionError::ProviderError(format!("{e}"))));
+            }
+        });
+
+        let stream = ReceiverStream::new(rx);
+        Ok(StreamingCompletionResponse::stream(Box::pin(stream)))
     }
 }
 
@@ -172,7 +171,179 @@ fn format_request(request: &CompletionRequest) -> String {
     prompt
 }
 
-/// Runs synchronous Candle inference. Called inside `spawn_blocking`.
+/// Runs streaming inference, sending each decoded token through the channel.
+///
+/// Uses the diff-decode strategy: decodes all generated tokens so far and diffs
+/// against the previous decode to get incremental text, avoiding UTF-8 boundary issues.
+fn run_inference_streaming(
+    registry: &Arc<Mutex<ModelRegistry>>,
+    model_id: &str,
+    prompt_text: &str,
+    tx: &mpsc::Sender<Result<RawStreamingChoice<CandleStreamingResponse>, CompletionError>>,
+) -> Result<(), anyhow::Error> {
+    let t0 = Instant::now();
+
+    let mut registry = registry.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {e}"))?;
+
+    let device = registry.device().clone();
+
+    let model = registry
+        .models
+        .get_mut(model_id)
+        .ok_or_else(|| anyhow::anyhow!("Model '{}' not found in registry", model_id))?;
+
+    let encoding = model
+        .tokenizer
+        .encode(prompt_text, false)
+        .map_err(|e| anyhow::anyhow!("Tokenization failed: {e}"))?;
+    let prompt_tokens: Vec<u32> = encoding.get_ids().to_vec();
+
+    let t1 = Instant::now();
+    let prompt_token_count = prompt_tokens.len();
+    tracing::info!(
+        prompt_tokens = prompt_token_count,
+        tokenization_ms = t1.duration_since(t0).as_millis() as u64,
+        "Tokenized prompt"
+    );
+
+    let max_tokens = model.config.max_tokens;
+    let eos_token_ids = model.config.eos_token_ids.clone();
+    let seed = model.config.seed.unwrap_or(42);
+    let temperature = model.config.temperature;
+    let top_p = model.config.top_p;
+
+    let mut logits_processor = LogitsProcessor::new(
+        seed,
+        if temperature > 0.0 {
+            Some(temperature)
+        } else {
+            None
+        },
+        if top_p < 1.0 { Some(top_p) } else { None },
+    );
+
+    // Full prefill — always reset KV cache and process all tokens in one batch.
+    // Candle's causal mask doesn't support multi-token forward with existing cache,
+    // and GPU batch prefill is fast enough that cache reuse offers no benefit.
+    let prompt_tensor = Tensor::new(&prompt_tokens[..], &device)?.unsqueeze(0)?;
+    let logits = model.weights.forward(&prompt_tensor, 0)?;
+    let logits = logits.squeeze(0)?;
+
+    let t2 = Instant::now();
+    let prefill_ms = t2.duration_since(t1).as_millis() as u64;
+    let prefill_tok_per_sec = if prefill_ms > 0 {
+        (prompt_token_count as f64 / prefill_ms as f64) * 1000.0
+    } else {
+        0.0
+    };
+    tracing::info!(
+        prefill_ms,
+        tokens_processed = prompt_token_count,
+        prefill_tok_per_sec = format!("{prefill_tok_per_sec:.1}"),
+        "Prefill complete"
+    );
+
+    // Sample first token
+    let mut next_token = logits_processor.sample(&logits)?;
+    let mut generated_tokens: Vec<u32> = vec![next_token];
+
+    // Check if first token is already EOS
+    if eos_token_ids.contains(&next_token) {
+        tracing::info!("First token was EOS, no generation needed");
+        let _ = tx.blocking_send(Ok(RawStreamingChoice::FinalResponse(
+            CandleStreamingResponse {
+                tokens_generated: 0,
+            },
+        )));
+        return Ok(());
+    }
+
+    // Decode and send first token
+    let mut prev_text = String::new();
+    let decoded = model
+        .tokenizer
+        .decode(&generated_tokens, true)
+        .map_err(|e| anyhow::anyhow!("Decode failed: {e}"))?;
+    let incremental = &decoded[prev_text.len()..];
+    if !incremental.is_empty() {
+        if tx
+            .blocking_send(Ok(RawStreamingChoice::Message(incremental.to_string())))
+            .is_err()
+        {
+            // Receiver dropped, abort generation
+            return Ok(());
+        }
+    }
+    prev_text = decoded;
+
+    // Autoregressive generation loop
+    let decode_start = Instant::now();
+    let total_prompt_len = prompt_tokens.len();
+    for i in 1..max_tokens {
+        let token_start = Instant::now();
+        let input = Tensor::new(&[next_token], &device)?.unsqueeze(0)?;
+        let logits = model
+            .weights
+            .forward(&input, total_prompt_len + i)?;
+        let logits = logits.squeeze(0)?;
+
+        next_token = logits_processor.sample(&logits)?;
+
+        let token_ms = token_start.elapsed().as_millis() as u64;
+        if i <= 5 {
+            tracing::info!(token_index = i, token_ms, "Decoded token");
+        }
+
+        if eos_token_ids.contains(&next_token) {
+            break;
+        }
+
+        generated_tokens.push(next_token);
+
+        // Diff-decode: decode all tokens, diff against previous
+        let decoded = model
+            .tokenizer
+            .decode(&generated_tokens, true)
+            .map_err(|e| anyhow::anyhow!("Decode failed: {e}"))?;
+        let incremental = &decoded[prev_text.len()..];
+        if !incremental.is_empty() {
+            if tx
+                .blocking_send(Ok(RawStreamingChoice::Message(incremental.to_string())))
+                .is_err()
+            {
+                return Ok(());
+            }
+        }
+        prev_text = decoded;
+    }
+
+    let decode_elapsed = decode_start.elapsed();
+    let total_elapsed = t0.elapsed();
+    let tokens_generated = generated_tokens.len();
+    let decode_tok_per_sec = if decode_elapsed.as_millis() > 0 {
+        (tokens_generated as f64 / decode_elapsed.as_millis() as f64) * 1000.0
+    } else {
+        0.0
+    };
+
+    tracing::info!(
+        tokens_generated,
+        decode_ms = decode_elapsed.as_millis() as u64,
+        decode_tok_per_sec = format!("{decode_tok_per_sec:.1}"),
+        total_ms = total_elapsed.as_millis() as u64,
+        prefill_ms,
+        "Generation complete"
+    );
+
+    // Send final response
+    let _ = tx.blocking_send(Ok(RawStreamingChoice::FinalResponse(
+        CandleStreamingResponse { tokens_generated },
+    )));
+
+    Ok(())
+}
+
+/// Runs synchronous Candle inference (non-streaming). Called inside `spawn_blocking`.
 ///
 /// Logs detailed timing information at each phase: tokenization, prefill,
 /// per-token decode, and total generation summary.
@@ -364,4 +535,5 @@ mod tests {
         // Should end with assistant generation prompt
         assert!(formatted.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
     }
+
 }

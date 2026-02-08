@@ -7,7 +7,10 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use futures::StreamExt;
+use rig::agent::MultiTurnStreamItem;
 use rig::completion::{Chat, Message};
+use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use tracing_subscriber::EnvFilter;
 
 use crate::agents::peer::build_peer_coach;
@@ -91,7 +94,7 @@ async fn main() -> Result<()> {
     }
 
     println!("Chiron MI Peer Support");
-    println!("Type your message, or 'quit' to exit.");
+    println!("Type your message, or 'quit' to exit. 'reset' clears conversation.");
     println!("---");
 
     // Chat loop
@@ -117,20 +120,55 @@ async fn main() -> Result<()> {
             break;
         }
 
-        // Send to agent with chat history
-        let t_start = Instant::now();
-        let response = agent
-            .chat(input, chat_history.clone())
-            .await
-            .context("Failed to get response from agent")?;
-        let elapsed = t_start.elapsed();
+        if input.eq_ignore_ascii_case("reset") {
+            chat_history.clear();
+            println!("Conversation reset.");
+            continue;
+        }
 
-        println!("\nChiron: {response}");
+        // Stream response token by token
+        let t_start = Instant::now();
+        print!("\nChiron: ");
+        io::stdout().flush()?;
+
+        let mut stream = agent
+            .stream_chat(input, chat_history.clone())
+            .await;
+
+        let mut full_response = String::new();
+
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                Ok(MultiTurnStreamItem::StreamAssistantItem(
+                    StreamedAssistantContent::Text(text),
+                )) => {
+                    print!("{}", text.text);
+                    io::stdout().flush()?;
+                    full_response.push_str(&text.text);
+                }
+                Ok(MultiTurnStreamItem::FinalResponse(final_resp)) => {
+                    // FinalResponse contains the aggregated response
+                    if full_response.is_empty() {
+                        full_response = final_resp.response().to_string();
+                        print!("{full_response}");
+                        io::stdout().flush()?;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("\nStreaming error: {e}");
+                    break;
+                }
+                _ => {}
+            }
+        }
+
+        println!();
+        let elapsed = t_start.elapsed();
         tracing::info!(response_ms = elapsed.as_millis() as u64, "Chat turn complete");
 
         // Update chat history
         chat_history.push(Message::user(input));
-        chat_history.push(Message::assistant(&response));
+        chat_history.push(Message::assistant(&full_response));
     }
 
     Ok(())
