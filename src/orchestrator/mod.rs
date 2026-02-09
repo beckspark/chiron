@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use futures::StreamExt;
-use rig::agent::MultiTurnStreamItem;
+use rig::agent::{Agent, MultiTurnStreamItem};
 use rig::completion::{Chat, Message};
 use rig::embeddings::EmbeddingModel;
 use rig::streaming::{StreamedAssistantContent, StreamingChat};
@@ -15,8 +15,6 @@ use crate::memory;
 use crate::memory::case_notes;
 use crate::memory::store::MiKnowledge;
 use crate::provider::completion::CandleCompletionModel;
-
-use rig::agent::Agent;
 
 /// Result of a single conversation turn through the orchestrator pipeline.
 #[derive(Debug)]
