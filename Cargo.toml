@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 # ML inference
-candle-core = { version = "0.9.1", features = ["cuda"] }
-candle-nn = { version = "0.9.1", features = ["cuda"] }
-candle-transformers = { version = "0.9.1", features = ["cuda"] }
+candle-core = { version = "0.9.2", features = ["cuda"] }
+candle-nn = { version = "0.9.2", features = ["cuda"] }
+candle-transformers = { version = "0.9.2", features = ["cuda"] }
 tokenizers = "0.21"
 
 # Agent framework
@@ -38,6 +38,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3.31"
 tokio-stream = "0.1"
+
+# Chat template rendering (HF Jinja2 templates)
+minijinja = { version = "2", features = ["loader"] }
 
 [profile.release]
 opt-level = 3

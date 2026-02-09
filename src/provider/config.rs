@@ -10,9 +10,6 @@ pub struct GenerationConfig {
     /// Maximum tokens to generate per response.
     pub max_tokens: usize,
     /// Token IDs that signal end of generation.
-    ///
-    /// For Llama 3.2 Instruct: `[128009]` (`<|eot_id|>`)
-    /// Also include `128001` (`<|end_of_text|>`) as fallback.
     pub eos_token_ids: Vec<u32>,
     /// Random seed for reproducibility. `None` for random.
     pub seed: Option<u64>,
@@ -24,8 +21,7 @@ impl Default for GenerationConfig {
             temperature: 0.7,
             top_p: 0.9,
             max_tokens: 512,
-            // Llama 3.2 Instruct EOS tokens
-            eos_token_ids: vec![128009, 128001],
+            eos_token_ids: vec![],
             seed: Some(42),
         }
     }

@@ -1,3 +1,4 @@
+pub mod case_notes;
 pub mod store;
 
 use anyhow::{Context, Result};
@@ -16,10 +17,11 @@ pub fn init_sqlite_vec() {
     }
 }
 
-/// Opens the database and creates the MI knowledge vector store plus a chat connection.
+/// Opens the database and creates an MI knowledge vector store plus a chat connection.
 ///
-/// Returns the vector store (for seeding/indexing) and a separate connection for
-/// chat turn persistence. Both point at the same database file.
+/// Returns a vector store for RAG and a separate connection for chat turn
+/// and case note persistence. Both point at the same database file;
+/// SQLite WAL handles concurrent reads.
 #[tracing::instrument(level = "info", skip(embedding_model))]
 pub async fn open_memory<E>(
     db_path: &str,
@@ -33,7 +35,7 @@ where
         .await
         .context("Failed to open knowledge DB connection")?;
 
-    // Separate connection for chat turn operations
+    // Separate connection for chat turn and case note operations
     let chat_conn = Connection::open(db_path)
         .await
         .context("Failed to open chat DB connection")?;
@@ -66,12 +68,15 @@ where
         .await
         .context("Failed to create chat_turns table")?;
 
-    // Create MI knowledge vector store (auto-creates mi_knowledge + mi_knowledge_embeddings tables)
+    // Create case_notes table
+    case_notes::create_case_notes_table(&chat_conn).await?;
+
+    // Create MI knowledge vector store
     let knowledge_store = SqliteVectorStore::new(knowledge_conn, embedding_model)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create knowledge vector store: {e}"))?;
 
-    tracing::info!("Memory initialized");
+    tracing::info!("Memory initialized (vector store + case notes)");
     Ok((knowledge_store, chat_conn))
 }
 

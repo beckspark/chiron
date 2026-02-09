@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use super::CandleProvider;
-use super::ModelRegistry;
+use super::chat_template::{self, ChatTemplate};
+use super::{CandleProvider, ModelRegistry};
 
 /// Response type for non-streaming completions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,12 +42,27 @@ impl rig::completion::GetTokenUsage for CandleStreamingResponse {
 
 /// A completion model backed by Candle GGUF inference.
 ///
-/// Implements Rig's `CompletionModel` trait to run local Llama models
-/// via Candle on CUDA (or CPU fallback).
+/// Implements Rig's `CompletionModel` trait to run SmolLM3 3B via
+/// quantized GGUF inference on CUDA (or CPU fallback).
 #[derive(Clone)]
 pub struct CandleCompletionModel {
     registry: Arc<Mutex<ModelRegistry>>,
     model_id: String,
+}
+
+impl CandleCompletionModel {
+    /// Formats a completion request using the model's chat template.
+    ///
+    /// Acquires the registry lock briefly to access the template. Always
+    /// suppresses thinking via `enable_thinking=false` in template options.
+    fn format_with_template(&self, request: &CompletionRequest) -> String {
+        let registry = self.registry.lock().expect("Registry lock poisoned");
+        let model = registry
+            .models
+            .get(&self.model_id)
+            .expect("Model not found in registry");
+        format_request(request, &model.template)
+    }
 }
 
 impl CompletionModel for CandleCompletionModel {
@@ -68,10 +83,11 @@ impl CompletionModel for CandleCompletionModel {
     ) -> Result<CompletionResponse<Self::Response>, CompletionError> {
         let registry = self.registry.clone();
         let model_id = self.model_id.clone();
-        let prompt_text = format_request(&request);
+        let prompt_text = self.format_with_template(&request);
+        let max_tokens_override = request.max_tokens.map(|t| t as usize);
 
         let result = tokio::task::spawn_blocking(move || {
-            run_inference(&registry, &model_id, &prompt_text)
+            run_inference(&registry, &model_id, &prompt_text, max_tokens_override)
         })
         .await
         .map_err(|e| CompletionError::ProviderError(format!("Task join error: {e}")))?
@@ -95,12 +111,13 @@ impl CompletionModel for CandleCompletionModel {
     ) -> Result<StreamingCompletionResponse<Self::StreamingResponse>, CompletionError> {
         let registry = self.registry.clone();
         let model_id = self.model_id.clone();
-        let prompt_text = format_request(&request);
+        let prompt_text = self.format_with_template(&request);
+        let max_tokens_override = request.max_tokens.map(|t| t as usize);
 
         let (tx, rx) = mpsc::channel::<Result<RawStreamingChoice<CandleStreamingResponse>, CompletionError>>(32);
 
         tokio::task::spawn_blocking(move || {
-            let result = run_inference_streaming(&registry, &model_id, &prompt_text, &tx);
+            let result = run_inference_streaming(&registry, &model_id, &prompt_text, &tx, max_tokens_override);
             if let Err(e) = result {
                 let _ = tx.blocking_send(Err(CompletionError::ProviderError(format!("{e}"))));
             }
@@ -111,26 +128,19 @@ impl CompletionModel for CandleCompletionModel {
     }
 }
 
-/// Formats a `CompletionRequest` into a Llama 3.2 Instruct chat template string.
+/// Formats a `CompletionRequest` into a prompt string using the model's chat template.
 ///
-/// Uses the format:
-/// ```text
-/// <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+/// Combines the preamble (with RAG documents appended) and chat history into
+/// template `Message`s, then renders via the HF Jinja2 template.
 ///
-/// {system_prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>
-///
-/// {user_message}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-///
-/// ```
-fn format_request(request: &CompletionRequest) -> String {
-    let mut prompt = String::from("<|begin_of_text|>");
+/// Always uses `enable_thinking=false` to structurally suppress reasoning,
+/// causing the template to prefill an empty `<think>\n\n</think>` block.
+fn format_request(request: &CompletionRequest, template: &ChatTemplate) -> String {
+    let mut messages = Vec::new();
 
-    // System preamble
+    // System message: preamble + RAG documents
     if let Some(preamble) = &request.preamble {
-        prompt.push_str("<|start_header_id|>system<|end_header_id|>\n\n");
-        prompt.push_str(preamble);
-
-        // Append any context documents (RAG results) to the system message
+        let mut system_content = preamble.clone();
         if !request.documents.is_empty() {
             tracing::debug!(
                 document_count = request.documents.len(),
@@ -145,43 +155,48 @@ fn format_request(request: &CompletionRequest) -> String {
                     "RAG document"
                 );
             }
-            prompt.push_str("\n\n# Reference Context\n");
+            system_content.push_str("\n\n# Reference Context\n");
             for doc in &request.documents {
-                prompt.push_str(&format!("{}\n", doc));
+                system_content.push_str(&format!("{doc}\n"));
             }
         }
-
-        prompt.push_str("<|eot_id|>");
+        messages.push(chat_template::Message::system(system_content));
     }
 
-    // Chat history (all messages including the final prompt)
+    // Chat history
     for message in request.chat_history.iter() {
         match message {
             Message::User { content } => {
-                prompt.push_str("<|start_header_id|>user<|end_header_id|>\n\n");
-                for item in content.iter() {
-                    if let rig::message::UserContent::Text(text) = item {
-                        prompt.push_str(&text.text);
-                    }
-                }
-                prompt.push_str("<|eot_id|>");
+                let text: String = content
+                    .iter()
+                    .filter_map(|c| match c {
+                        rig::message::UserContent::Text(t) => Some(t.text.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("");
+                messages.push(chat_template::Message::user(text));
             }
             Message::Assistant { content, .. } => {
-                prompt.push_str("<|start_header_id|>assistant<|end_header_id|>\n\n");
-                for item in content.iter() {
-                    if let AssistantContent::Text(text) = item {
-                        prompt.push_str(&text.text);
-                    }
-                }
-                prompt.push_str("<|eot_id|>");
+                let text: String = content
+                    .iter()
+                    .filter_map(|c| match c {
+                        AssistantContent::Text(t) => Some(t.text.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("");
+                messages.push(chat_template::Message::assistant(text));
             }
         }
     }
 
-    // Generation prompt -- signal the model to generate an assistant response
-    prompt.push_str("<|start_header_id|>assistant<|end_header_id|>\n\n");
+    // Render with thinking suppressed (enable_thinking defaults to false)
+    let options = chat_template::ChatTemplateOptions::for_generation();
 
-    prompt
+    template
+        .apply(&messages, &options)
+        .expect("Chat template rendering failed")
 }
 
 /// Runs streaming inference, sending each decoded token through the channel.
@@ -193,6 +208,7 @@ fn run_inference_streaming(
     model_id: &str,
     prompt_text: &str,
     tx: &mpsc::Sender<Result<RawStreamingChoice<CandleStreamingResponse>, CompletionError>>,
+    max_tokens_override: Option<usize>,
 ) -> Result<(), anyhow::Error> {
     let t0 = Instant::now();
 
@@ -219,7 +235,7 @@ fn run_inference_streaming(
         "Tokenized prompt"
     );
 
-    let max_tokens = model.config.max_tokens;
+    let max_tokens = max_tokens_override.unwrap_or(model.config.max_tokens);
     let eos_token_ids = model.config.eos_token_ids.clone();
     let seed = model.config.seed.unwrap_or(42);
     let temperature = model.config.temperature;
@@ -364,6 +380,7 @@ fn run_inference(
     registry: &Arc<Mutex<ModelRegistry>>,
     model_id: &str,
     prompt_text: &str,
+    max_tokens_override: Option<usize>,
 ) -> Result<CandleResponse, anyhow::Error> {
     let t0 = Instant::now();
 
@@ -391,7 +408,7 @@ fn run_inference(
         "Tokenized prompt"
     );
 
-    let max_tokens = model.config.max_tokens;
+    let max_tokens = max_tokens_override.unwrap_or(model.config.max_tokens);
     let eos_token_ids = model.config.eos_token_ids.clone();
     let seed = model.config.seed.unwrap_or(42);
     let temperature = model.config.temperature;
@@ -503,6 +520,7 @@ mod tests {
 
     #[test]
     fn test_format_request_simple() {
+        let template = ChatTemplate::chatml_with_thinking();
         let request = CompletionRequest {
             preamble: Some("You are a helpful assistant.".to_string()),
             chat_history: OneOrMany::one(Message::user("Hello")),
@@ -514,17 +532,24 @@ mod tests {
             additional_params: None,
         };
 
-        let formatted = format_request(&request);
+        let formatted = format_request(&request, &template);
 
-        assert!(formatted.starts_with("<|begin_of_text|>"));
-        assert!(formatted.contains("system"));
+        assert!(formatted.contains("<|im_start|>system\n"));
         assert!(formatted.contains("You are a helpful assistant."));
+        assert!(formatted.contains("<|im_end|>"));
+        assert!(formatted.contains("<|im_start|>user\n"));
         assert!(formatted.contains("Hello"));
-        assert!(formatted.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
+        // Always suppresses thinking
+        assert!(
+            formatted.ends_with("<|im_start|>assistant\n<think>\n\n</think>\n\n"),
+            "Should prefill empty think block, got: ...{}",
+            &formatted[formatted.len().saturating_sub(80)..],
+        );
     }
 
     #[test]
     fn test_format_request_with_history() {
+        let template = ChatTemplate::chatml_with_thinking();
         let request = CompletionRequest {
             preamble: Some("System prompt".to_string()),
             chat_history: OneOrMany::many(vec![
@@ -541,17 +566,17 @@ mod tests {
             additional_params: None,
         };
 
-        let formatted = format_request(&request);
+        let formatted = format_request(&request, &template);
 
         assert!(formatted.contains("First message"));
         assert!(formatted.contains("First response"));
         assert!(formatted.contains("Second message"));
-        // Should end with assistant generation prompt
-        assert!(formatted.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
+        assert!(formatted.ends_with("<|im_start|>assistant\n<think>\n\n</think>\n\n"));
     }
 
     #[test]
     fn test_format_request_with_rag_documents() {
+        let template = ChatTemplate::chatml_with_thinking();
         let request = CompletionRequest {
             preamble: Some("You are a peer coach.".to_string()),
             chat_history: OneOrMany::one(Message::user("I want to stop drinking")),
@@ -575,36 +600,30 @@ mod tests {
             additional_params: None,
         };
 
-        let formatted = format_request(&request);
+        let formatted = format_request(&request, &template);
 
-        // RAG context section exists between preamble and eot
+        // RAG context inside system block
         assert!(formatted.contains("# Reference Context"));
-
-        // Both documents injected with their IDs and content
         assert!(formatted.contains("oars_reflections"));
         assert!(formatted.contains("OARS - Reflections"));
         assert!(formatted.contains("change_talk_prep_desire"));
         assert!(formatted.contains("Change Talk - Desire"));
 
-        // Document metadata is included
-        assert!(formatted.contains("category"));
-
-        // Context appears inside the system block, before eot
-        let system_block_start = formatted.find("system<|end_header_id|>").unwrap();
-        let system_eot = formatted[system_block_start..].find("<|eot_id|>").unwrap()
-            + system_block_start;
+        // Context appears between system im_start and im_end
+        let system_start = formatted.find("<|im_start|>system").unwrap();
+        let system_end = formatted[system_start..].find("<|im_end|>").unwrap() + system_start;
         let ref_context_pos = formatted.find("# Reference Context").unwrap();
         assert!(
-            ref_context_pos > system_block_start && ref_context_pos < system_eot,
+            ref_context_pos > system_start && ref_context_pos < system_end,
             "RAG context must be inside system block"
         );
 
-        // User message still present after system block
         assert!(formatted.contains("I want to stop drinking"));
     }
 
     #[test]
     fn test_format_request_no_documents_no_context_section() {
+        let template = ChatTemplate::chatml_with_thinking();
         let request = CompletionRequest {
             preamble: Some("System prompt".to_string()),
             chat_history: OneOrMany::one(Message::user("Hello")),
@@ -616,10 +635,30 @@ mod tests {
             additional_params: None,
         };
 
-        let formatted = format_request(&request);
+        let formatted = format_request(&request, &template);
         assert!(
             !formatted.contains("# Reference Context"),
             "No context section when documents are empty"
         );
+    }
+
+    #[test]
+    fn test_format_request_no_preamble() {
+        let template = ChatTemplate::chatml_with_thinking();
+        let request = CompletionRequest {
+            preamble: None,
+            chat_history: OneOrMany::one(Message::user("Hello")),
+            documents: vec![],
+            tools: vec![],
+            temperature: None,
+            max_tokens: None,
+            tool_choice: None,
+            additional_params: None,
+        };
+
+        let formatted = format_request(&request, &template);
+
+        assert!(!formatted.contains("<|im_start|>system"));
+        assert!(formatted.contains("<|im_start|>user\nHello<|im_end|>"));
     }
 }

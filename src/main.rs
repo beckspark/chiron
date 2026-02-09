@@ -1,6 +1,7 @@
 mod agents;
 mod knowledge;
 mod memory;
+mod orchestrator;
 mod provider;
 
 use std::io::{self, Write};
@@ -9,22 +10,21 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use futures::StreamExt;
-use rig::agent::MultiTurnStreamItem;
-use rig::completion::{Chat, Message};
+use rig::completion::Chat;
 use rig::embeddings::{EmbeddingModel as _, EmbeddingsBuilder};
-use rig::streaming::{StreamedAssistantContent, StreamingChat};
 use tracing_subscriber::EnvFilter;
 
-use crate::agents::peer::{build_peer_coach, build_peer_coach_with_rag};
+use crate::agents::case_notes::build_supervisor;
+use crate::agents::peer::build_peer_coach;
+use crate::orchestrator::Orchestrator;
 use crate::provider::config::GenerationConfig;
-use crate::provider::{CandleProvider, ModelRegistry};
+use crate::provider::{CandleProvider, ModelRegistry, SMOLLM3_EOS_TOKEN_IDS};
 
 #[derive(Parser)]
 #[command(name = "chiron")]
 #[command(about = "MI peer support chatbot powered by local LLMs")]
 struct Args {
-    /// Path to the peer coach GGUF model file
+    /// Path to the GGUF model file (8B recommended)
     #[arg(long)]
     model: PathBuf,
 
@@ -55,6 +55,16 @@ struct Args {
     /// Number of RAG results to inject as context per query
     #[arg(long, default_value = "5")]
     rag_top_k: usize,
+
+    /// Path to tokenizer_config.json or chat_template.jinja for HF chat template.
+    /// When provided, uses the model's native Jinja2 template instead of built-in presets.
+    #[arg(long)]
+    chat_template: Option<PathBuf>,
+
+    /// Maximum tokens for the peer coach response (default: 256).
+    /// Separate from --max-tokens which controls the model-level default.
+    #[arg(long, default_value = "256")]
+    coach_max_tokens: usize,
 }
 
 const COACH_MODEL_ID: &str = "peer-coach";
@@ -70,7 +80,7 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    // Load LLM into registry
+    // Load single model into registry
     let mut registry = ModelRegistry::new()?;
     registry.load_model(
         COACH_MODEL_ID,
@@ -79,14 +89,16 @@ async fn main() -> Result<()> {
         GenerationConfig {
             temperature: args.temperature,
             max_tokens: args.max_tokens,
+            eos_token_ids: SMOLLM3_EOS_TOKEN_IDS.to_vec(),
             ..Default::default()
         },
+        args.chat_template.as_deref(),
     )?;
     let provider = CandleProvider::new(registry);
-    let completion_model = provider.completion_model(COACH_MODEL_ID);
 
-    // Bench mode: single prompt, no RAG, print timing, exit
+    // Bench mode: single prompt, no RAG, no case notes, print timing, exit
     if let Some(prompt) = args.bench {
+        let completion_model = provider.completion_model(COACH_MODEL_ID);
         let agent = build_peer_coach(completion_model);
         println!("=== Benchmark Mode ===");
         println!("Prompt: {prompt}");
@@ -106,7 +118,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // --- Interactive mode: initialize RAG and memory ---
+    // --- Interactive mode: initialize RAG, memory, and case notes ---
 
     // Initialize sqlite-vec extension (must happen before any DB connections)
     memory::init_sqlite_vec();
@@ -121,7 +133,7 @@ async fn main() -> Result<()> {
         "Embedding model ready"
     );
 
-    // Open database and create vector store
+    // Open database: one vector store + chat connection
     let (knowledge_store, chat_conn) =
         memory::open_memory(&args.db_path, &embedding_model).await?;
 
@@ -143,9 +155,11 @@ async fn main() -> Result<()> {
         tracing::info!(rows = inserted, "MI knowledge seeded into database");
     }
 
-    // Create search index (consumes store) and build RAG-enabled agent
-    let knowledge_index = knowledge_store.index(embedding_model);
-    let agent = build_peer_coach_with_rag(completion_model, knowledge_index, args.rag_top_k);
+    // Build two completion model handles from the same provider
+    let peer_coach_model = provider.completion_model(COACH_MODEL_ID);
+    let supervisor_model = provider.completion_model(COACH_MODEL_ID);
+
+    let supervisor = build_supervisor(supervisor_model);
 
     // Generate session ID
     let session_id = format!(
@@ -156,22 +170,37 @@ async fn main() -> Result<()> {
     );
     tracing::info!(session_id, "Starting interactive session");
 
-    println!("Chiron MI Peer Support (with RAG)");
+    let mut orchestrator = Orchestrator::new(
+        peer_coach_model,
+        supervisor,
+        knowledge_store,
+        embedding_model,
+        args.rag_top_k,
+        args.coach_max_tokens,
+        session_id,
+        chat_conn,
+    );
+
+    println!("Chiron MI Peer Support (SmolLM3 + Case Notes)");
     println!("Type your message, or 'quit' to exit. 'reset' clears conversation.");
     println!("---");
 
     // Chat loop
-    let mut chat_history: Vec<Message> = Vec::new();
-
     loop {
-        // Read user input
         print!("\nYou: ");
         io::stdout().flush()?;
 
         let mut input = String::new();
-        io::stdin()
+        let bytes_read = io::stdin()
             .read_line(&mut input)
             .context("Failed to read input")?;
+
+        // EOF — stdin closed (e.g., piped input exhausted)
+        if bytes_read == 0 {
+            println!("Take care of yourself. Goodbye.");
+            break;
+        }
+
         let input = input.trim();
 
         if input.is_empty() {
@@ -184,56 +213,15 @@ async fn main() -> Result<()> {
         }
 
         if input.eq_ignore_ascii_case("reset") {
-            chat_history.clear();
+            orchestrator.reset();
             println!("Conversation reset.");
             continue;
         }
 
-        // Stream response token by token
-        let t_start = Instant::now();
-        print!("\nChiron: ");
-        io::stdout().flush()?;
-
-        let mut stream = agent.stream_chat(input, chat_history.clone()).await;
-
-        let mut full_response = String::new();
-
-        while let Some(chunk) = stream.next().await {
-            match chunk {
-                Ok(MultiTurnStreamItem::StreamAssistantItem(
-                    StreamedAssistantContent::Text(text),
-                )) => {
-                    print!("{}", text.text);
-                    io::stdout().flush()?;
-                    full_response.push_str(&text.text);
-                }
-                Ok(MultiTurnStreamItem::FinalResponse(final_resp)) => {
-                    // FinalResponse contains the aggregated response
-                    if full_response.is_empty() {
-                        full_response = final_resp.response().to_string();
-                        print!("{full_response}");
-                        io::stdout().flush()?;
-                    }
-                }
-                Err(e) => {
-                    eprintln!("\nStreaming error: {e}");
-                    break;
-                }
-                _ => {}
-            }
-        }
-
-        println!();
-        let elapsed = t_start.elapsed();
-        tracing::info!(response_ms = elapsed.as_millis() as u64, "Chat turn complete");
-
-        // Save turn to database
-        memory::save_chat_turn(&chat_conn, &session_id, "user", input).await?;
-        memory::save_chat_turn(&chat_conn, &session_id, "assistant", &full_response).await?;
-
-        // Update chat history
-        chat_history.push(Message::user(input));
-        chat_history.push(Message::assistant(&full_response));
+        orchestrator
+            .run_turn(input)
+            .await
+            .context("Turn failed")?;
     }
 
     Ok(())
