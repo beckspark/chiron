@@ -14,9 +14,12 @@ use crate::provider::completion::CandleCompletionModel;
 /// gives consistent context without overwhelming the format constraints.
 ///
 /// Design choices for 3B model reliability:
-/// - Concrete example output instead of abstract `[X/Y/Z]` notation (prevents literal copying)
-/// - "Exactly 4 lines" hard constraint (prevents snowball repetition of prior notes)
-/// - Explicit carry-forward instruction for Running Themes (prevents per-turn regression)
+/// - Input provides only PREVIOUS MI STAGE + PREVIOUS THEMES (not full notes)
+///   so the model has nothing to copy — it must extract from the exchange
+/// - "Exactly 4 lines" hard constraint (prevents snowball repetition)
+/// - Two inline few-shot examples ground extraction behavior
+/// - Theme accumulation is enforced programmatically after generation
+/// - Speaker attribution warning (prevents confusing Coach questions with Person statements)
 pub const SUPERVISOR_PREAMBLE: &str = r#"You update case notes after each exchange in a peer support conversation.
 
 MI Reference:
@@ -25,24 +28,49 @@ MI Reference:
 - OARS skills: Open questions, Affirmations, Reflections (simple/complex), Summaries
 - Discord signs: defending, arguing, interrupting, disengaging — means adjust approach
 
-Write exactly 4 lines:
+You receive: the LATEST EXCHANGE, the PREVIOUS MI STAGE, and PREVIOUS THEMES.
+Write exactly 4 lines based on the LATEST EXCHANGE:
 
 MI Stage: (one of engage, focus, evoke, plan)
-What Changed: (one sentence about what the person said or did in this exchange only)
-Coach Effectiveness: (one sentence using OARS terms — what worked or try next)
-Running Themes: (all topics from previous notes plus any new ones, comma-separated)
+What Changed: (what the PERSON said or did — not the coach)
+Coach Effectiveness: (one sentence using OARS terms)
+Running Themes: (previous themes plus any new ones, comma-separated)
 
-Example output:
+=== Example 1 ===
+Input:
+LATEST EXCHANGE:
+Person: I've been drinking every night since the breakup
+Coach: Have you thought about what drinking does for you?
+
+PREVIOUS MI STAGE: none
+PREVIOUS THEMES: none
+
+Output:
 MI Stage: engage
-What Changed: Person described drinking nightly to cope with stress.
-Coach Effectiveness: Good simple reflection, could use open question to explore readiness.
-Running Themes: drinking, stress, coping
+What Changed: Person disclosed nightly drinking since a breakup.
+Coach Effectiveness: Open question exploring function of drinking.
+Running Themes: drinking, breakup
+
+=== Example 2 ===
+Input:
+LATEST EXCHANGE:
+Person: I tried not drinking last night but I just lay there for hours
+Coach: So you made the effort to stop, and sleep was the hard part.
+
+PREVIOUS MI STAGE: focus
+PREVIOUS THEMES: drinking, breakup, sleep
+
+Output:
+MI Stage: evoke
+What Changed: Person attempted sobriety but experienced insomnia.
+Coach Effectiveness: Complex reflection linking effort to barrier, affirming attempt.
+Running Themes: drinking, breakup, sleep, sobriety attempt
 
 Rules:
-- Write EXACTLY 4 lines. No extra text before or after.
-- Do NOT repeat or copy the previous notes. Write fresh lines based on the new exchange.
-- Running Themes must carry forward ALL themes from previous notes and add new ones.
-- Keep each line under 20 words."#;
+- EXACTLY 4 lines. No extra text before or after.
+- What Changed describes what PERSON said, never what COACH asked.
+- Running Themes: keep all previous themes, add new ones.
+- Each line under 20 words."#;
 
 /// Builds the peer coach supervisor agent (no RAG).
 ///
