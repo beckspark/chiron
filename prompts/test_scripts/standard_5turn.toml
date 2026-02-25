@@ -1,0 +1,22 @@
+id = "standard-5turn"
+description = "Exercises engage→focus→evoke progression with ambivalence and change talk"
+
+[[turns]]
+input = "I don't know, I've just been feeling really down lately."
+notes = "Vague opening — tests engagement with minimal input"
+
+[[turns]]
+input = "Yeah, I've been drinking a lot more since I lost my job three months ago."
+notes = "Disclosure with context — tests specificity and reflection"
+
+[[turns]]
+input = "I know it's bad for me but it's the only thing that helps me sleep."
+notes = "Ambivalence — tests double-sided reflection, exploring function"
+
+[[turns]]
+input = "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me."
+notes = "External pressure + resistance — tests autonomy support"
+
+[[turns]]
+input = "I did try cutting back last week. Made it two days before the anxiety got too bad."
+notes = "Change talk (taking steps) — tests affirmation of effort"

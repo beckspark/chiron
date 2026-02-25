@@ -1,0 +1,1557 @@
+{
+  "run_id": "2026-02-25T20-01-12",
+  "model": "smollm3-3b",
+  "test_script": "standard-5turn",
+  "seed": 42,
+  "architecture": "two-agent",
+  "total_duration_ms": 1837134,
+  "combinations": [
+    {
+      "coach_variant": "coach-v1-baseline",
+      "supervisor_variant": "supervisor-v1-baseline",
+      "total_duration_ms": 122801,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down. It sounds tough. How has this feeling been affecting your day?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Affirmation and open question encouraging elaboration.  \nRunning Themes: mood, feelings, daily impact",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 7865,
+          "supervisor_ms": 11793
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "That sounds really hard to deal with. How has the drinking been impacting your life lately?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss three months ago.  \nCoach Effectiveness: Affirmation acknowledging difficulty, open question exploring impact.  \nRunning Themes: mood, feelings, daily impact, job loss, drinking",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 6978,
+          "supervisor_ms": 14798
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I get that it's hard to find relief in the only thing that helps. How does that feeling of not being able to sleep affect you beyond just sleep?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledges drinking helps sleep but recognizes it's harmful.  \nCoach Effectiveness: Complex reflection linking drinking to sleep and emotional impact.  \nRunning Themes: mood, feelings, daily impact, job loss, drinking, sleep, harm of drinking",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact",
+            "job loss",
+            "drinking",
+            "sleep",
+            "harm of drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 11490,
+          "supervisor_ms": 15634
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "I'm glad your sister is trying to help. It's tough to know what's right for you. What makes you hesitate about going to meetings?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person expressed hesitation about meetings despite sister's suggestion.  \nCoach Effectiveness: Affirmation and open question encouraging exploration of hesitation.  \nRunning Themes: mood, feelings, daily impact, job loss, drinking, sleep, harm of drinking, meetings",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact",
+            "job loss",
+            "drinking",
+            "sleep",
+            "harm of drinking",
+            "meetings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10791,
+          "supervisor_ms": 15805
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "That’s a big step, and it shows you’re trying to take control. What’s been the hardest part about feeling anxious again?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person attempted to cut back on drinking but relapsed due to anxiety.  \nCoach Effectiveness: Affirmation acknowledging effort, complex reflection on anxiety’s impact.  \nRunning Themes: mood, feelings, daily impact, job loss, drinking, sleep, harm of drinking, meetings, anxiety",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact",
+            "job loss",
+            "drinking",
+            "sleep",
+            "harm of drinking",
+            "meetings",
+            "anxiety"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9946,
+          "supervisor_ms": 17683
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v1-baseline",
+      "supervisor_variant": "supervisor-v2-minimal",
+      "total_duration_ms": 118969,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down. It sounds tough. How has this feeling been affecting your day?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Empathetic response acknowledging distress.  \nRunning Themes: mood, feelings",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "feelings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8187,
+          "supervisor_ms": 10320
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "That sounds really hard to deal with. Drinking more since losing your job—how does that make you feel now?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss three months ago.  \nCoach Effectiveness: Acknowledged struggle and probed emotional response.  \nRunning Themes: mood, feelings, job loss, drinking",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "feelings",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8708,
+          "supervisor_ms": 14126
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I get that it's hard to find relief in ways that hurt. It’s okay to feel stuck. What’s one small step you could take to feel better tomorrow?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person acknowledged drinking helps sleep but recognizes it's harmful.  \nCoach Effectiveness: Acknowledged complexity and offered actionable next step.  \nRunning Themes: mood, feelings, job loss, drinking, sleep, relief",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "feelings",
+            "job loss",
+            "drinking",
+            "sleep",
+            "relief"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 12360,
+          "supervisor_ms": 14401
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "Thanks for sharing that. It’s brave to be honest. What makes you think meetings might not be right for you?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person expressed hesitation about meetings despite sister’s suggestion.  \nCoach Effectiveness: Acknowledged honesty and prompted reflection on meeting suitability.  \nRunning Themes: mood, feelings, job loss, drinking, sleep, relief, meetings",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "feelings",
+            "job loss",
+            "drinking",
+            "sleep",
+            "relief",
+            "meetings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8774,
+          "supervisor_ms": 14514
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "That’s a big step, and it shows you’re trying to take control. What’s one thing you’d like to try differently next time the anxiety comes up?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person tried cutting back last week but anxiety overwhelmed them.  \nCoach Effectiveness: Encouraged commitment with positive reinforcement and future planning.  \nRunning Themes: mood, feelings, job loss, drinking, sleep, relief, meetings, anxiety, control",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "feelings",
+            "job loss",
+            "drinking",
+            "sleep",
+            "relief",
+            "meetings",
+            "anxiety",
+            "control"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 11944,
+          "supervisor_ms": 15619
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v1-baseline",
+      "supervisor_variant": "supervisor-v3-detailed",
+      "total_duration_ms": 118003,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down. It sounds tough. How has this feeling been affecting your day?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down without specifying the cause.  \nCoach Effectiveness: Open question inviting elaboration, showing empathy.  \nRunning Themes: mood, emotional state, feelings.",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 7929,
+          "supervisor_ms": 12888
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "That sounds really heavy to handle, especially after losing your job. How do you feel about drinking more lately?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss.  \nCoach Effectiveness: Open question inviting exploration of feelings.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking.",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 7925,
+          "supervisor_ms": 13376
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I get that drinking helps you sleep, but it’s important to find other ways too. What’s been hardest about not being able to sleep?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledges drinking helps sleep but is open to alternatives.  \nCoach Effectiveness: Affirmation with open question encouraging exploration of alternatives.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking., drinking, sleep, alternatives.",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking.",
+            "drinking",
+            "sleep",
+            "alternatives."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10182,
+          "supervisor_ms": 15220
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "Your sister’s concern is valid, but it’s okay to feel unsure. What would make you more comfortable trying something new?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person expressed hesitation about attending meetings despite sister’s suggestion.  \nCoach Effectiveness: Open question encouraging exploration of comfort factors.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking., drinking, sleep, alternatives., alternatives, meeting hesitation.",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking.",
+            "drinking",
+            "sleep",
+            "alternatives.",
+            "alternatives",
+            "meeting hesitation."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8922,
+          "supervisor_ms": 14999
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "That’s a big step, and it shows you’re trying to take control. What’s been the hardest part about going back to drinking?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on drinking but relapsed due to anxiety.  \nCoach Effectiveness: Open question prompting reflection on relapse triggers.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking., drinking, sleep, alternatives., alternatives, meeting hesitation.",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking.",
+            "drinking",
+            "sleep",
+            "alternatives.",
+            "alternatives",
+            "meeting hesitation."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10038,
+          "supervisor_ms": 16505
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v2-concise",
+      "supervisor_variant": "supervisor-v1-baseline",
+      "total_duration_ms": 122620,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down. That sounds tough. How has that feeling been affecting your day?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Affirmation and open question encouraging elaboration.  \nRunning Themes: mood, feelings, daily impact",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 7486,
+          "supervisor_ms": 11409
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "Drinking more since losing your job... that's a big change. How does that feeling of being down影响 your life right now?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss three months ago.  \nCoach Effectiveness: Affirmation acknowledging significant change and open question.  \nRunning Themes: mood, feelings, daily impact, job loss, drinking",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9165,
+          "supervisor_ms": 14286
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I see you're using drinking to help sleep. That's a tough trade-off. How do you feel about trying something else to help you sleep?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledges drinking helps sleep but recognizes it's harmful.  \nCoach Effectiveness: Affirmation and reflection on trade-off between sleep and health.  \nRunning Themes: mood, feelings, daily impact, job loss, drinking, sleep, health",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact",
+            "job loss",
+            "drinking",
+            "sleep",
+            "health"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10325,
+          "supervisor_ms": 15778
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "Your sister's concern is valid. It's okay to feel unsure about meetings. What makes you think they might not be right for you?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person expressed hesitation about meetings despite sister's suggestion.  \nCoach Effectiveness: Affirmation validating uncertainty, open question exploring reasons.  \nRunning Themes: mood, feelings, daily impact, job loss, drinking, sleep, health, meetings",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact",
+            "job loss",
+            "drinking",
+            "sleep",
+            "health",
+            "meetings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9456,
+          "supervisor_ms": 14704
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "You tried cutting back last week—two days before the anxiety got bad. That shows you're trying to take control. What would it take for you to feel more in control of your sleep and drinking?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on drinking last week but anxiety interrupted progress.  \nCoach Effectiveness: Affirmation and complex reflection on control and barriers.  \nRunning Themes: mood, feelings, daily impact, job loss, drinking, sleep, health, meetings, control",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "feelings",
+            "daily impact",
+            "job loss",
+            "drinking",
+            "sleep",
+            "health",
+            "meetings",
+            "control"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 13664,
+          "supervisor_ms": 16329
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v2-concise",
+      "supervisor_variant": "supervisor-v2-minimal",
+      "total_duration_ms": 111671,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down. That sounds tough. How has that feeling been affecting your day?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Empathetic response acknowledging distress.  \nRunning Themes: mood, feelings",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "feelings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 7781,
+          "supervisor_ms": 10044
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "Drinking more since losing your job—that’s a big change. How does that feeling of being down influence your daily life?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss three months ago.  \nCoach Effectiveness: Acknowledged significant change and explored its impact.  \nRunning Themes: mood, feelings, job loss, drinking",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "feelings",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8791,
+          "supervisor_ms": 13734
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "It’s hard to feel like the only thing that helps you sleep. How do you feel about relying on drinking to cope with sleep issues?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledges drinking as a coping mechanism for sleep issues.  \nCoach Effectiveness: Reflective question exploring reliance on drinking for sleep.  \nRunning Themes: mood, feelings, job loss, drinking, sleep, coping",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "feelings",
+            "job loss",
+            "drinking",
+            "sleep",
+            "coping"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9524,
+          "supervisor_ms": 14223
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "Your sister’s words resonate. It’s okay to feel unsure about meetings. What makes you think going to meetings might help you feel better?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person considered sister’s suggestion about meetings.  \nCoach Effectiveness: Encouraged exploration of meetings as a potential solution.  \nRunning Themes: mood, feelings, job loss, drinking, sleep, coping, meetings",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "feelings",
+            "job loss",
+            "drinking",
+            "sleep",
+            "coping",
+            "meetings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9790,
+          "supervisor_ms": 13876
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "Cutting back even a little is a step forward. What’s one small thing you could do next to feel more in control?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on drinking but anxiety interrupted.  \nCoach Effectiveness: Encouraged small steps and emphasized control.  \nRunning Themes: mood, feelings, job loss, drinking, sleep, coping, meetings, anxiety",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "feelings",
+            "job loss",
+            "drinking",
+            "sleep",
+            "coping",
+            "meetings",
+            "anxiety"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9012,
+          "supervisor_ms": 14880
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v2-concise",
+      "supervisor_variant": "supervisor-v3-detailed",
+      "total_duration_ms": 118970,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down. That sounds tough. How has that feeling been affecting your day?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down without specifying the cause.  \nCoach Effectiveness: Open question inviting elaboration, showing empathy.  \nRunning Themes: mood, emotional state, feelings.",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 7492,
+          "supervisor_ms": 12529
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "Drinking more since losing your job—that’s a big change. How has that been impacting your life lately?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss.  \nCoach Effectiveness: Open question inviting exploration of impact.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking.",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8122,
+          "supervisor_ms": 12628
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "It’s hard to feel like the only thing that helps you sleep. How does that feeling of being stuck feel when you’re trying to change?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledges the paradox of using alcohol for sleep.  \nCoach Effectiveness: Open question probing contradiction, encouraging exploration.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking., drinking, sleep issues.",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking.",
+            "drinking",
+            "sleep issues."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9894,
+          "supervisor_ms": 13879
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "Your sister’s words resonate. It’s okay to feel unsure about meetings. What would it mean for you to take that next step, even just a little?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person expressed hesitation about meetings but acknowledged sister’s input.  \nCoach Effectiveness: Open question inviting exploration of next steps.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking., drinking, sleep issues., sleep issues, meetings.",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking.",
+            "drinking",
+            "sleep issues.",
+            "sleep issues",
+            "meetings."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10668,
+          "supervisor_ms": 14605
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "Cutting back last week and feeling the anxiety come back—that shows you’re trying, which is brave. What would it mean for you to take a small step forward, even if it’s just one day?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person tried cutting back last week but anxiety returned.  \nCoach Effectiveness: Affirmation of effort with open question encouraging small steps.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking., drinking, sleep issues., sleep issues, meetings.",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking.",
+            "drinking",
+            "sleep issues.",
+            "sleep issues",
+            "meetings."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 14183,
+          "supervisor_ms": 14954
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v3-warm",
+      "supervisor_variant": "supervisor-v1-baseline",
+      "total_duration_ms": 119004,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down lately. What's been the hardest part of this feeling?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Affirmation followed by open question inviting reflection.  \nRunning Themes: mood, feeling down",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "feeling down"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 6875,
+          "supervisor_ms": 10690
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "It's been tough since losing your job three months ago — that must have been really hard. What's been the hardest part of this recent change?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss three months ago.  \nCoach Effectiveness: Affirmation and open question to explore impact of job loss.  \nRunning Themes: mood, feeling down, job loss, drinking",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "feeling down",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10000,
+          "supervisor_ms": 14681
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I see that drinking helps you sleep, even though it's not good for you. What’s been the hardest part about relying on it to sleep?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledged drinking helps sleep despite being harmful.  \nCoach Effectiveness: Affirmation and reflection on conflict between harm and benefit.  \nRunning Themes: mood, feeling down, job loss, drinking, sleep",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "feeling down",
+            "job loss",
+            "drinking",
+            "sleep"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10100,
+          "supervisor_ms": 13696
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "It's good that your sister noticed this and wants you to consider meetings. What’s the part that makes you unsure it’s the right step for you?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person expressed uncertainty about attending meetings despite sister’s suggestion.  \nCoach Effectiveness: Affirmation and open question probing hesitation.  \nRunning Themes: mood, feeling down, job loss, drinking, sleep, meetings",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "feeling down",
+            "job loss",
+            "drinking",
+            "sleep",
+            "meetings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10540,
+          "supervisor_ms": 13606
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "That’s a big step you took last week — cutting back even if it meant the anxiety came back. What’s the part that makes you wonder if meetings are the right next step for you?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on drinking last week but anxiety interfered.  \nCoach Effectiveness: Affirmation and complex reflection on progress and next steps.  \nRunning Themes: mood, feeling down, job loss, drinking, sleep, meetings, cutting back",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "feeling down",
+            "job loss",
+            "drinking",
+            "sleep",
+            "meetings",
+            "cutting back"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 12837,
+          "supervisor_ms": 15964
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v3-warm",
+      "supervisor_variant": "supervisor-v2-minimal",
+      "total_duration_ms": 116358,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down lately. What's been the hardest part of this feeling?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Empathetic response acknowledging emotional state.  \nRunning Themes: depression, emotional state",
+          "mi_stage": "engage",
+          "themes": [
+            "depression",
+            "emotional state"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 6815,
+          "supervisor_ms": 10656
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "It's been tough since losing your job three months ago — that must be really heavy. What's been the hardest part of this feeling?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person linked increased drinking to job loss three months ago.  \nCoach Effectiveness: Acknowledged the weight of the situation and asked about the hardest part.  \nRunning Themes: depression, emotional state, job loss, drinking",
+          "mi_stage": "engage",
+          "themes": [
+            "depression",
+            "emotional state",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9456,
+          "supervisor_ms": 15275
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I see that drinking helps you sleep, even though it's not good for you. What’s been the hardest part about relying on it to sleep?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledged drinking helps sleep despite being harmful.  \nCoach Effectiveness: Acknowledged contradiction, prompting reflection on reliance.  \nRunning Themes: depression, emotional state, job loss, drinking, sleep",
+          "mi_stage": "evoke",
+          "themes": [
+            "depression",
+            "emotional state",
+            "job loss",
+            "drinking",
+            "sleep"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10195,
+          "supervisor_ms": 13193
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "It's good that your sister noticed this and wants you to go to meetings. What’s been the hardest part about considering whether meetings are right for you?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person considered meetings but unsure if they’re right for them.  \nCoach Effectiveness: Encouraged reflection on decision-making process.  \nRunning Themes: depression, emotional state, job loss, drinking, sleep, meetings",
+          "mi_stage": "plan",
+          "themes": [
+            "depression",
+            "emotional state",
+            "job loss",
+            "drinking",
+            "sleep",
+            "meetings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10398,
+          "supervisor_ms": 14066
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "That’s a big step you took last week — cutting back even if the anxiety came back. What’s been the hardest part about trying to reduce the drinking?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person committed to cutting back last week despite anxiety.  \nCoach Effectiveness: Acknowledged progress and explored challenges of reduction.  \nRunning Themes: depression, emotional state, job loss, drinking, sleep, meetings, reduction efforts",
+          "mi_stage": "plan",
+          "themes": [
+            "depression",
+            "emotional state",
+            "job loss",
+            "drinking",
+            "sleep",
+            "meetings",
+            "reduction efforts"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 11170,
+          "supervisor_ms": 15118
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v3-warm",
+      "supervisor_variant": "supervisor-v3-detailed",
+      "total_duration_ms": 110428,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down lately. What's been the hardest part of this feeling?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down without specifying the cause.  \nCoach Effectiveness: Affirmation with open question to build rapport and explore.  \nRunning Themes: mood, emotional state, feelings",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 6795,
+          "supervisor_ms": 13505
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "It's hard to cope with losing a job — what's been the hardest part of this change?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked job loss to increased drinking.  \nCoach Effectiveness: Open question inviting exploration of coping mechanisms.  \nRunning Themes: mood, emotional state, feelings, job loss, drinking",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 6906,
+          "supervisor_ms": 12713
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I see that drinking helps you sleep — what’s been the hardest part of relying on it so much?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledges drinking helps sleep but highlights reliance on it.  \nCoach Effectiveness: Open question probing underlying challenges of dependency.  \nRunning Themes: mood, emotional state, feelings, job loss, drinking, sleep reliance",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings",
+            "job loss",
+            "drinking",
+            "sleep reliance"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 7310,
+          "supervisor_ms": 13871
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "It’s tough to feel unsure about meetings when your sister says the same thing — what’s been the hardest part of not knowing if it’s right for you?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person expresses uncertainty about meetings despite sister’s suggestion.  \nCoach Effectiveness: Open question encouraging exploration of doubts.  \nRunning Themes: mood, emotional state, feelings, job loss, drinking, sleep reliance, meeting uncertainty",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings",
+            "job loss",
+            "drinking",
+            "sleep reliance",
+            "meeting uncertainty"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10562,
+          "supervisor_ms": 13863
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "That’s a big step — what’s been the hardest part of trying to cut back but then feeling the anxiety come back?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on drinking but struggled with anxiety.  \nCoach Effectiveness: Open question encouraging exploration of barriers to progress.  \nRunning Themes: mood, emotional state, feelings, job loss, drinking, sleep reliance, meeting uncertainty, anxiety, cutting back",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings",
+            "job loss",
+            "drinking",
+            "sleep reliance",
+            "meeting uncertainty",
+            "anxiety",
+            "cutting back"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8730,
+          "supervisor_ms": 16159
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v4-lean",
+      "supervisor_variant": "supervisor-v1-baseline",
+      "total_duration_ms": 121327,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling this way. It's okay to feel down sometimes. What's been on your mind lately?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Affirmation and open question to explore feelings.  \nRunning Themes: depression, mood",
+          "mi_stage": "engage",
+          "themes": [
+            "depression",
+            "mood"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8491,
+          "supervisor_ms": 10833
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "It sounds like the job loss has been tough on your mental health. Have you thought about how the drinking is affecting your mood or daily life?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss and mental health.  \nCoach Effectiveness: Affirmation and open question exploring drinking's impact.  \nRunning Themes: depression, mood, job loss, drinking",
+          "mi_stage": "focus",
+          "themes": [
+            "depression",
+            "mood",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9771,
+          "supervisor_ms": 13668
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "It’s clear that the drinking is trying to help you cope with the stress of losing your job. Have you considered other ways to manage your sleep and mood that might be less harmful?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledged drinking helps sleep but recognized it's harmful.  \nCoach Effectiveness: Affirmation and reflection linking drinking to stress and sleep.  \nRunning Themes: depression, mood, job loss, drinking, sleep, coping strategies",
+          "mi_stage": "evoke",
+          "themes": [
+            "depression",
+            "mood",
+            "job loss",
+            "drinking",
+            "sleep",
+            "coping strategies"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 12150,
+          "supervisor_ms": 14866
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "It’s tough to know what’s right for you, especially when others have similar feelings. What do you think would help you feel better or more in control?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person expressed uncertainty about attending meetings despite sister’s suggestion.  \nCoach Effectiveness: Affirmation acknowledging uncertainty, open question exploring personal needs.  \nRunning Themes: depression, mood, job loss, drinking, sleep, coping strategies, meetings",
+          "mi_stage": "evoke",
+          "themes": [
+            "depression",
+            "mood",
+            "job loss",
+            "drinking",
+            "sleep",
+            "coping strategies",
+            "meetings"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10658,
+          "supervisor_ms": 15120
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "It’s encouraging that you tried to cut back, even if it was short-term. Have you found anything that helps you manage anxiety without alcohol?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on alcohol but anxiety interrupted progress.  \nCoach Effectiveness: Affirmation for effort, open question exploring alternative coping.  \nRunning Themes: depression, mood, job loss, drinking, sleep, coping strategies, meetings, anxiety",
+          "mi_stage": "plan",
+          "themes": [
+            "depression",
+            "mood",
+            "job loss",
+            "drinking",
+            "sleep",
+            "coping strategies",
+            "meetings",
+            "anxiety"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9806,
+          "supervisor_ms": 15948
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v4-lean",
+      "supervisor_variant": "supervisor-v2-minimal",
+      "total_duration_ms": 128736,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling this way. It's okay to feel down sometimes. What's been on your mind lately?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Empathetic response acknowledging emotional state.  \nRunning Themes: depression, mood",
+          "mi_stage": "engage",
+          "themes": [
+            "depression",
+            "mood"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8512,
+          "supervisor_ms": 11410
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "It’s understandable that drinking might feel like a way to cope with sadness. Have you thought about other ways to manage your feelings?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss three months ago.  \nCoach Effectiveness: Acknowledged coping mechanism and invited exploration of alternatives.  \nRunning Themes: depression, mood, job loss, drinking",
+          "mi_stage": "focus",
+          "themes": [
+            "depression",
+            "mood",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10042,
+          "supervisor_ms": 15367
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "It’s tough to deal with sadness without turning to drinking, but there are other ways to find rest. Have you considered talking to someone about your feelings?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledges drinking as a coping mechanism for sleep.  \nCoach Effectiveness: Acknowledges struggle and offers alternative solutions.  \nRunning Themes: depression, mood, job loss, drinking, sleep, coping strategies",
+          "mi_stage": "evoke",
+          "themes": [
+            "depression",
+            "mood",
+            "job loss",
+            "drinking",
+            "sleep",
+            "coping strategies"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 11501,
+          "supervisor_ms": 16045
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "It’s okay that you’re unsure—finding the right support is part of the process. What would make you feel more comfortable seeking help?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person expressed hesitation about support groups but acknowledged uncertainty.  \nCoach Effectiveness: Encouraged exploration of comfort in seeking help.  \nRunning Themes: depression, mood, job loss, drinking, sleep, coping strategies, support groups",
+          "mi_stage": "plan",
+          "themes": [
+            "depression",
+            "mood",
+            "job loss",
+            "drinking",
+            "sleep",
+            "coping strategies",
+            "support groups"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10578,
+          "supervisor_ms": 16220
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "That’s a big step, and it shows you’re trying to take control. Would you like to explore other ways to manage anxiety without alcohol?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on alcohol but struggled with anxiety.  \nCoach Effectiveness: Acknowledged progress and suggested alternative anxiety management.  \nRunning Themes: depression, mood, job loss, drinking, sleep, coping strategies, support groups, anxiety, alcohol withdrawal",
+          "mi_stage": "plan",
+          "themes": [
+            "depression",
+            "mood",
+            "job loss",
+            "drinking",
+            "sleep",
+            "coping strategies",
+            "support groups",
+            "anxiety",
+            "alcohol withdrawal"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10880,
+          "supervisor_ms": 18165
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v4-lean",
+      "supervisor_variant": "supervisor-v3-detailed",
+      "total_duration_ms": 133713,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling this way. It's okay to feel down sometimes. What's been on your mind lately?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down without specifying a reason.  \nCoach Effectiveness: Affirmation and open question to build rapport and explore feelings.  \nRunning Themes: mood, emotional state, feelings.",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9601,
+          "supervisor_ms": 15475
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "It sounds like losing your job has been really hard on you. Drinking more might be a way to cope—what do you think it’s helping you deal with?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked job loss to increased drinking.  \nCoach Effectiveness: Open question inviting exploration of coping mechanisms.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, coping.",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "coping."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 12259,
+          "supervisor_ms": 14234
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "It’s tough to balance coping with your needs. Have you tried other ways to help you sleep that might be less harmful?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledges harm but relies on it for sleep.  \nCoach Effectiveness: Open question inviting exploration of alternatives.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, coping., coping, sleep, harm vs. benefit.",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "coping.",
+            "coping",
+            "sleep",
+            "harm vs. benefit."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9385,
+          "supervisor_ms": 16508
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "It’s okay that you’re unsure—what do you think meetings might offer that could help you feel better?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person expressed hesitation about support groups.  \nCoach Effectiveness: Open question encouraging exploration of potential benefits.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, coping., coping, sleep, harm vs. benefit., harm vs. benefit, support groups.",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "coping.",
+            "coping",
+            "sleep",
+            "harm vs. benefit.",
+            "harm vs. benefit",
+            "support groups."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 8501,
+          "supervisor_ms": 15819
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "That’s a big step, and it shows you’re trying to take control. What would it look like for you to keep building on that progress?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on substance use but relapsed due to anxiety.  \nCoach Effectiveness: Open question encouraging specific next steps after affirming progress.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, coping., coping, sleep, harm vs. benefit., harm vs. benefit, support groups., support groups, progress, relapse.",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "coping.",
+            "coping",
+            "sleep",
+            "harm vs. benefit.",
+            "harm vs. benefit",
+            "support groups.",
+            "support groups",
+            "progress",
+            "relapse."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 11015,
+          "supervisor_ms": 20898
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v5-mode-aware",
+      "supervisor_variant": "supervisor-v1-baseline",
+      "total_duration_ms": 128416,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down. It's okay to feel this way sometimes. Would you like to talk more about what's on your mind?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Affirmation and open question inviting further discussion.  \nRunning Themes: mood, feeling down",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "feeling down"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 11233,
+          "supervisor_ms": 11587
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "I'm sorry to hear that. Losing a job can be really tough. Would you like to talk more about how this is affecting you?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person linked increased drinking to job loss three months ago.  \nCoach Effectiveness: Affirmation and open question inviting exploration of impact.  \nRunning Themes: mood, feeling down, job loss, drinking",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "feeling down",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9244,
+          "supervisor_ms": 14139
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I understand that alcohol can help you sleep, but it's important to find healthier ways to manage your sleep. Would you like to explore other options with me?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledged alcohol's role in sleep but recognized it's harmful.  \nCoach Effectiveness: Affirmation and reflection on conflict between harm and benefit.  \nRunning Themes: mood, feeling down, job loss, drinking, sleep, alcohol's effects",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "feeling down",
+            "job loss",
+            "drinking",
+            "sleep",
+            "alcohol's effects"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10582,
+          "supervisor_ms": 15967
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "I see that your sister is concerned about you. It's okay to feel unsure, but support groups can offer helpful perspectives. Would you like to consider trying one?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person expressed hesitation about support groups despite sister's suggestion.  \nCoach Effectiveness: Affirmation and invitation to commit to action.  \nRunning Themes: mood, feeling down, job loss, drinking, sleep, alcohol's effects, support groups",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "feeling down",
+            "job loss",
+            "drinking",
+            "sleep",
+            "alcohol's effects",
+            "support groups"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 11017,
+          "supervisor_ms": 15148
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "I'm glad you made a effort to cut back. It's tough to manage anxiety, but small steps can make a difference. Would you like to talk more about what's helping you cope?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on drinking but anxiety interfered.  \nCoach Effectiveness: Affirmation and summary encouraging continued effort.  \nRunning Themes: mood, feeling down, job loss, drinking, sleep, alcohol's effects, support groups, anxiety, coping strategies",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "feeling down",
+            "job loss",
+            "drinking",
+            "sleep",
+            "alcohol's effects",
+            "support groups",
+            "anxiety",
+            "coping strategies"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 13110,
+          "supervisor_ms": 16374
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v5-mode-aware",
+      "supervisor_variant": "supervisor-v2-minimal",
+      "total_duration_ms": 134878,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down. It's okay to feel this way sometimes. Would you like to talk more about what's on your mind?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down lately.  \nCoach Effectiveness: Empathetic response acknowledging emotion and inviting further discussion.  \nRunning Themes: mood, emotional state",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "emotional state"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10102,
+          "supervisor_ms": 11564
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "I'm sorry to hear that. Losing a job can be really tough, and it's okay to feel this way. Would you like to share more about how it's been affecting you?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person mentioned increased drinking since losing job three months ago.  \nCoach Effectiveness: Empathetic response acknowledging stress and inviting further discussion.  \nRunning Themes: mood, emotional state, job loss, drinking",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "emotional state",
+            "job loss",
+            "drinking"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 12351,
+          "supervisor_ms": 14137
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I understand that alcohol can help you sleep, but it's important to find healthier ways to manage stress. Would you like to explore other coping strategies together?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledged alcohol's role in sleep but recognized it as harmful.  \nCoach Effectiveness: Acknowledged the person's honesty and offered alternative solutions.  \nRunning Themes: mood, emotional state, job loss, drinking, sleep, stress management",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "emotional state",
+            "job loss",
+            "drinking",
+            "sleep",
+            "stress management"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10376,
+          "supervisor_ms": 16065
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "I see that your sister is concerned about you. It's okay to feel unsure, but meetings can offer support and new ways to cope. Would you like to consider trying one?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person expressed hesitation about support groups but acknowledged potential benefits.  \nCoach Effectiveness: Encouraged consideration of meetings while validating uncertainty.  \nRunning Themes: mood, emotional state, job loss, drinking, sleep, stress management, support groups",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "emotional state",
+            "job loss",
+            "drinking",
+            "sleep",
+            "stress management",
+            "support groups"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 11956,
+          "supervisor_ms": 15056
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "I'm glad you tried to cut back. It's a step in the right direction. You don't have to do it all at once—small steps can make a big difference. Would you like to talk more about what's been helping you manage anxiety?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on drinking but anxiety interfered.  \nCoach Effectiveness: Acknowledged effort, validated progress, and offered continued support.  \nRunning Themes: mood, emotional state, job loss, drinking, sleep, stress management, support groups, anxiety",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "emotional state",
+            "job loss",
+            "drinking",
+            "sleep",
+            "stress management",
+            "support groups",
+            "anxiety"
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 17120,
+          "supervisor_ms": 16134
+        }
+      ]
+    },
+    {
+      "coach_variant": "coach-v5-mode-aware",
+      "supervisor_variant": "supervisor-v3-detailed",
+      "total_duration_ms": 131234,
+      "turns": [
+        {
+          "turn_number": 1,
+          "input": "I don't know, I've just been feeling really down lately.",
+          "coach_response": "I'm sorry you've been feeling down. It's okay to feel this way sometimes. Would you like to talk more about what's on your mind?",
+          "case_notes": "MI Stage: engage  \nWhat Changed: Person expressed feeling down without specifying the cause.  \nCoach Effectiveness: Affirmation and open question to build rapport and encourage sharing.  \nRunning Themes: mood, emotional state, feelings.",
+          "mi_stage": "engage",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10279,
+          "supervisor_ms": 13954
+        },
+        {
+          "turn_number": 2,
+          "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+          "coach_response": "I'm sorry to hear that. Losing a job can be really tough. Would you like to talk more about how this is affecting you?",
+          "case_notes": "MI Stage: focus  \nWhat Changed: Person linked increased drinking to job loss.  \nCoach Effectiveness: Open question inviting exploration of impact.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking.",
+          "mi_stage": "focus",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 9374,
+          "supervisor_ms": 12724
+        },
+        {
+          "turn_number": 3,
+          "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+          "coach_response": "I understand that alcohol can help you sleep, but it's important to find healthier ways to manage your stress. Would you like to explore other coping strategies together?",
+          "case_notes": "MI Stage: evoke  \nWhat Changed: Person acknowledges alcohol's role in sleep but seeks alternative stress management.  \nCoach Effectiveness: Affirmation with open question encouraging exploration of other strategies.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking., drinking, stress, sleep.",
+          "mi_stage": "evoke",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking.",
+            "drinking",
+            "stress",
+            "sleep."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 10567,
+          "supervisor_ms": 16945
+        },
+        {
+          "turn_number": 4,
+          "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+          "coach_response": "It’s okay that you’re unsure. Support groups can be a good way to connect with others who understand what you’re going through. Would you like to explore that option further?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person expressed hesitation about support groups but opened to exploring the option.  \nCoach Effectiveness: Open question inviting exploration of potential benefits.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking., drinking, stress, sleep., sleep, support groups.",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking.",
+            "drinking",
+            "stress",
+            "sleep.",
+            "sleep",
+            "support groups."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 13608,
+          "supervisor_ms": 16896
+        },
+        {
+          "turn_number": 5,
+          "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+          "coach_response": "I’m sorry you had to stop early. It’s tough to manage anxiety without support. Would you like to talk more about what’s been helping you cope?",
+          "case_notes": "MI Stage: plan  \nWhat Changed: Person attempted to cut back on drinking but stopped due to anxiety.  \nCoach Effectiveness: Open question inviting exploration of coping strategies.  \nRunning Themes: mood, emotional state, feelings., feelings, job loss, drinking., drinking, stress, sleep., sleep, support groups.",
+          "mi_stage": "plan",
+          "themes": [
+            "mood",
+            "emotional state",
+            "feelings.",
+            "feelings",
+            "job loss",
+            "drinking.",
+            "drinking",
+            "stress",
+            "sleep.",
+            "sleep",
+            "support groups."
+          ],
+          "detected_mode": null,
+          "route_confidence": null,
+          "coach_ms": 11595,
+          "supervisor_ms": 15276
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+id = "resistance-recovery"
+description = "6-turn arc: person starts resistant to change, coach rolls with it, person gradually opens up and moves toward change talk"
+
+[[turns]]
+input = "My wife made me come talk to someone. I don't think I have a problem."
+notes = "Resistance — externally motivated, denying problem, defending status quo"
+expected_mode = "resistance"
+
+[[turns]]
+input = "Everyone keeps making a big deal out of nothing. So I drink a few beers after work. Who doesn't?"
+notes = "Resistance — normalizing behavior, dismissing concern, argumentative"
+expected_mode = "resistance"
+
+[[turns]]
+input = "I mean, I guess she has a point that I've been angrier lately. But that's because of work, not the drinking."
+notes = "Ambivalence — partial acknowledgment followed by attribution to external cause"
+expected_mode = "ambivalence"
+
+[[turns]]
+input = "The thing is, we used to have a really good time together. Lately it's just been fighting."
+notes = "Engagement — opening up about relationship, sharing specific details, rapport deepening"
+expected_mode = "engagement"
+
+[[turns]]
+input = "I don't want to lose her. She's the best thing in my life. Maybe I do need to look at this honestly."
+notes = "Change talk — desire (don't want to lose her), reasons (she matters), readiness to self-examine"
+expected_mode = "change-talk"
+
+[[turns]]
+input = "What if I tried just having two beers instead of the whole six-pack? That seems more manageable."
+notes = "Change talk — taking steps, concrete plan, activation toward change"
+expected_mode = "change-talk"

@@ -1,0 +1,94 @@
+[[modes]]
+id = "crisis"
+description = "Self-harm, suicide, immediate danger"
+coach_modifier = "Acknowledge their pain with empathy. Provide crisis resources: 988 Lifeline, Crisis Text Line (text HOME to 741741). Do not use MI techniques — prioritize safety."
+utterances = [
+  "I don't want to be here anymore",
+  "I've been thinking about ending it",
+  "I just want the pain to stop",
+  "What's the point of going on",
+  "I can't do this anymore",
+  "Nobody would care if I was gone",
+  "I've been having thoughts about hurting myself",
+  "I feel like giving up on everything",
+  "Sometimes I think everyone would be better off without me",
+  "I don't see any way out of this",
+  "I've been thinking about not waking up",
+  "I just want it all to end",
+]
+
+[[modes]]
+id = "resistance"
+description = "Discord signs: defending, arguing, dismissing, disengaging"
+coach_modifier = "Roll with resistance. Avoid confrontation. Use simple reflections. Emphasize autonomy — their choice."
+utterances = [
+  "You don't understand what I'm going through",
+  "That's easy for you to say",
+  "I don't need anyone telling me what to do",
+  "Nothing is going to help",
+  "I've tried everything already",
+  "Why does everyone think they know what's best for me",
+  "This is pointless",
+  "I don't want to talk about it",
+  "You're just like everyone else",
+  "Stop trying to fix me",
+  "I'm fine, I don't have a problem",
+  "Whatever, it doesn't matter",
+]
+
+[[modes]]
+id = "change-talk"
+description = "DARN-CAT: desire, ability, reasons, need, commitment, activation, taking steps"
+coach_modifier = "Reinforce change talk. Use complex reflections that amplify their motivation. Affirm their strengths and steps."
+utterances = [
+  "I want to stop drinking so much",
+  "I know I could do it if I really tried",
+  "My kids deserve a better version of me",
+  "I need to make a change before it's too late",
+  "I'm going to call my doctor tomorrow",
+  "I already started looking into meetings",
+  "I actually went two days without drinking last week",
+  "Part of me really wants things to be different",
+  "I think I'm ready to try something new",
+  "I used to be so much healthier, I can get back there",
+  "I've been cutting back on my own",
+  "I promised myself I'd do something about this",
+]
+
+[[modes]]
+id = "ambivalence"
+description = "Mixed feelings, weighing pros and cons, 'but' statements"
+coach_modifier = "Explore both sides without pushing. Develop discrepancy gently. Use double-sided reflections."
+utterances = [
+  "I know it's bad for me but it helps me relax",
+  "Part of me wants to change but part of me doesn't",
+  "I want to quit but I don't know if I can handle the stress",
+  "Everyone says I should stop but I'm not sure it's that bad",
+  "Sometimes I think I should cut back, other times I don't care",
+  "I like how it makes me feel but I hate the mornings after",
+  "I want to be healthier but drinking is the only thing I enjoy",
+  "Maybe I should try, but what if I fail again",
+  "It's complicated, there are good things and bad things about it",
+  "I go back and forth about whether it's really a problem",
+  "On one hand I want to stop, on the other hand I can't imagine life without it",
+  "I know what I should do but I just can't seem to do it",
+]
+
+[[modes]]
+id = "engagement"
+description = "General sharing, rapport building, opening up"
+coach_modifier = "Build rapport. Listen actively. Use open questions and simple reflections. Let them lead."
+utterances = [
+  "I don't know, I've just been feeling really down lately",
+  "Things have been kind of rough, you know",
+  "I guess I'm just stressed about work and stuff",
+  "I've been having a hard time sleeping",
+  "My family has been getting on my nerves",
+  "I just needed someone to talk to",
+  "I'm not really sure where to start",
+  "It's been a weird few weeks",
+  "I've been keeping a lot to myself lately",
+  "Yeah, I guess things could be better",
+  "I've just been going through a lot",
+  "Is it okay if I just vent for a bit",
+]

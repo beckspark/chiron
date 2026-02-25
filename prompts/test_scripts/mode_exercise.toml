@@ -1,0 +1,52 @@
+id = "mode-exercise"
+description = "Exercises all 5 conversation modes across 10 turns with ground-truth labels"
+
+[[turns]]
+input = "Hey, I'm not sure what to say really. Things have just been off lately."
+notes = "Engagement — vague opening, rapport building"
+expected_mode = "engagement"
+
+[[turns]]
+input = "Yeah, I've been drinking more than I should. But honestly it's the only thing that takes the edge off after work."
+notes = "Ambivalence — acknowledges problem but defends the behavior with 'but' statement"
+expected_mode = "ambivalence"
+
+[[turns]]
+input = "Look, I appreciate you listening but I really don't need a lecture. Everyone keeps telling me what to do."
+notes = "Resistance — dismissive, defending autonomy, frustrated with external pressure"
+expected_mode = "resistance"
+
+[[turns]]
+input = "Sorry, I didn't mean to snap. I guess I'm just tired of people judging me."
+notes = "Engagement — softening after resistance, opening back up"
+expected_mode = "engagement"
+
+[[turns]]
+input = "The truth is, I know I need to cut back. My sister is worried about me and she's usually right about these things."
+notes = "Change talk — DARN: reasons (sister's worry), desire (need to cut back)"
+expected_mode = "change-talk"
+
+[[turns]]
+input = "I actually tried not drinking last Tuesday. Made it through the whole evening. But then Wednesday was terrible."
+notes = "Ambivalence — taking steps mixed with setback, 'but' minimizing progress"
+expected_mode = "ambivalence"
+
+[[turns]]
+input = "I want to try again though. I felt clearer that morning and I want more of that."
+notes = "Change talk — desire and activation, positive experience reinforcing motivation"
+expected_mode = "change-talk"
+
+[[turns]]
+input = "But what if I can't do it? I've failed at this so many times. Maybe I'm just not strong enough."
+notes = "Ambivalence — self-doubt, fear of failure undermining earlier change talk"
+expected_mode = "ambivalence"
+
+[[turns]]
+input = "Sometimes late at night I just think... what's the point of any of this. Like nothing is ever going to change."
+notes = "Crisis — hopelessness, existential despair, potential passive ideation"
+expected_mode = "crisis"
+
+[[turns]]
+input = "I don't mean like that, I'm safe. I just get really down sometimes. I think I'm going to try the no-drinking thing again this week."
+notes = "Change talk — clarifies safety, commitment to action, activation"
+expected_mode = "change-talk"

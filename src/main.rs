@@ -1,8 +1,10 @@
 mod agents;
+mod eval;
 mod knowledge;
 mod memory;
 mod orchestrator;
 mod provider;
+mod router;
 
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -16,20 +18,22 @@ use tracing_subscriber::EnvFilter;
 
 use crate::agents::case_notes::build_supervisor;
 use crate::agents::peer::build_peer_coach;
+use crate::eval::catalog::{ModesCatalog, PromptCatalog};
 use crate::orchestrator::Orchestrator;
 use crate::provider::config::GenerationConfig;
-use crate::provider::{CandleProvider, ModelRegistry, SMOLLM3_EOS_TOKEN_IDS};
+use crate::provider::{CandleProvider, ModelArch, ModelRegistry};
+use crate::router::ModeRouter;
 
 #[derive(Parser)]
 #[command(name = "chiron")]
 #[command(about = "MI peer support chatbot powered by local LLMs")]
 struct Args {
-    /// Path to the GGUF model file (8B recommended)
-    #[arg(long)]
+    /// Path to the GGUF model file
+    #[arg(long, default_value = "models/smollm3-3b.gguf")]
     model: PathBuf,
 
-    /// Path to the tokenizer.json file (e.g. from HuggingFace)
-    #[arg(long)]
+    /// Path to the tokenizer.json file
+    #[arg(long, default_value = "models/tokenizer-smollm3.json")]
     tokenizer: PathBuf,
 
     /// Maximum tokens to generate per response
@@ -61,10 +65,42 @@ struct Args {
     #[arg(long)]
     chat_template: Option<PathBuf>,
 
-    /// Maximum tokens for the peer coach response (default: 256).
-    /// Separate from --max-tokens which controls the model-level default.
-    #[arg(long, default_value = "256")]
-    coach_max_tokens: usize,
+    /// Run prompt evaluation matrix and exit
+    #[arg(long)]
+    eval: bool,
+
+    /// Path to the test script TOML for eval mode
+    #[arg(long, default_value = "prompts/test_scripts/standard_5turn.toml")]
+    eval_script: PathBuf,
+
+    /// Path to coach prompt variants TOML
+    #[arg(long, default_value = "prompts/coach.toml")]
+    coach_variants: PathBuf,
+
+    /// Path to supervisor prompt variants TOML
+    #[arg(long, default_value = "prompts/supervisor.toml")]
+    supervisor_variants: PathBuf,
+
+    /// Path to conversation modes TOML
+    #[arg(long, default_value = "prompts/modes.toml")]
+    modes_catalog: PathBuf,
+
+    /// Output directory for eval results JSON
+    #[arg(long, default_value = "evals")]
+    eval_output: PathBuf,
+
+    /// Coach variant ID to use for interactive/bench mode (default: first variant in catalog)
+    #[arg(long)]
+    coach_variant: Option<String>,
+
+    /// Supervisor variant ID to use for interactive mode (default: first variant in catalog)
+    #[arg(long)]
+    supervisor_variant: Option<String>,
+
+    /// Model architecture override. Auto-detected from GGUF metadata when not set.
+    /// Supported: smollm3, qwen3
+    #[arg(long)]
+    model_arch: Option<String>,
 }
 
 const COACH_MODEL_ID: &str = "peer-coach";
@@ -80,16 +116,64 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
+    // Load prompt catalogs
+    let coach_catalog = PromptCatalog::load(&args.coach_variants)
+        .context("Failed to load coach prompt catalog")?;
+    let supervisor_catalog = PromptCatalog::load(&args.supervisor_variants)
+        .context("Failed to load supervisor prompt catalog")?;
+    let modes_catalog = ModesCatalog::load(&args.modes_catalog)
+        .context("Failed to load modes catalog")?;
+
+    // Select variants for interactive/bench mode
+    let coach_variant = match &args.coach_variant {
+        Some(id) => coach_catalog.get_variant(id)?.clone(),
+        None => coach_catalog.variants.first()
+            .context("Coach catalog has no variants")?.clone(),
+    };
+    let supervisor_variant = match &args.supervisor_variant {
+        Some(id) => supervisor_catalog.get_variant(id)?.clone(),
+        None => supervisor_catalog.variants.first()
+            .context("Supervisor catalog has no variants")?.clone(),
+    };
+
+    tracing::info!(
+        coach = &coach_variant.id,
+        supervisor = &supervisor_variant.id,
+        "Selected prompt variants"
+    );
+
+    // Canonicalize model/tokenizer paths so symlinks resolve for the GGUF loader
+    let model_path = args.model.canonicalize().with_context(|| {
+        format!("Model file not found: {}", args.model.display())
+    })?;
+    let tokenizer_path = args.tokenizer.canonicalize().with_context(|| {
+        format!("Tokenizer file not found: {}", args.tokenizer.display())
+    })?;
+
+    // Determine model architecture (explicit override or auto-detect from GGUF)
+    let arch = match &args.model_arch {
+        Some(s) => Some(s.parse::<ModelArch>()?),
+        None => None,
+    };
+
+    // Use architecture-specific EOS tokens (auto-detected if arch is None)
+    let detected_arch = match arch {
+        Some(a) => a,
+        None => ModelArch::detect_from_gguf(&model_path)?,
+    };
+    let eos_token_ids = detected_arch.default_eos_token_ids().to_vec();
+
     // Load single model into registry
     let mut registry = ModelRegistry::new()?;
     registry.load_model(
         COACH_MODEL_ID,
-        &args.model,
-        &args.tokenizer,
+        &model_path,
+        &tokenizer_path,
+        arch,
         GenerationConfig {
             temperature: args.temperature,
             max_tokens: args.max_tokens,
-            eos_token_ids: SMOLLM3_EOS_TOKEN_IDS.to_vec(),
+            eos_token_ids,
             ..Default::default()
         },
         args.chat_template.as_deref(),
@@ -99,8 +183,19 @@ async fn main() -> Result<()> {
     // Bench mode: single prompt, no RAG, no case notes, print timing, exit
     if let Some(prompt) = args.bench {
         let completion_model = provider.completion_model(COACH_MODEL_ID);
-        let agent = build_peer_coach(completion_model);
+        let preamble = crate::agents::peer::build_peer_coach_preamble(
+            &coach_variant.preamble,
+            None,
+            None,
+        );
+        let agent = build_peer_coach(
+            completion_model,
+            &preamble,
+            coach_variant.temperature,
+            coach_variant.max_tokens,
+        );
         println!("=== Benchmark Mode ===");
+        println!("Coach variant: {}", coach_variant.id);
         println!("Prompt: {prompt}");
         println!("---");
 
@@ -155,11 +250,38 @@ async fn main() -> Result<()> {
         tracing::info!(rows = inserted, "MI knowledge seeded into database");
     }
 
+    // Eval mode: run prompt evaluation matrix and exit
+    if args.eval {
+        let eval_model = provider.completion_model(COACH_MODEL_ID);
+        return eval::run_eval(
+            eval_model,
+            knowledge_store,
+            embedding_model,
+            args.rag_top_k,
+            chat_conn,
+            &args.coach_variants,
+            &args.supervisor_variants,
+            &args.eval_script,
+            &args.eval_output,
+        )
+        .await;
+    }
+
+    // Build semantic router from modes catalog
+    let mode_router = ModeRouter::from_catalog(&modes_catalog, embedding_model.clone())
+        .await
+        .context("Failed to build mode router")?;
+
     // Build two completion model handles from the same provider
     let peer_coach_model = provider.completion_model(COACH_MODEL_ID);
     let supervisor_model = provider.completion_model(COACH_MODEL_ID);
 
-    let supervisor = build_supervisor(supervisor_model);
+    let supervisor = build_supervisor(
+        supervisor_model,
+        &supervisor_variant.preamble,
+        supervisor_variant.temperature,
+        supervisor_variant.max_tokens,
+    );
 
     // Generate session ID
     let session_id = format!(
@@ -173,15 +295,18 @@ async fn main() -> Result<()> {
     let mut orchestrator = Orchestrator::new(
         peer_coach_model,
         supervisor,
+        coach_variant.clone(),
+        mode_router,
+        modes_catalog,
         knowledge_store,
         embedding_model,
         args.rag_top_k,
-        args.coach_max_tokens,
         session_id,
         chat_conn,
     );
 
-    println!("Chiron MI Peer Support (SmolLM3 + Case Notes)");
+    println!("Chiron MI Peer Support (Mode-Routed + Case Notes)");
+    println!("Coach: {} | Supervisor: {}", coach_variant.id, supervisor_variant.id);
     println!("Type your message, or 'quit' to exit. 'reset' clears conversation.");
     println!("---");
 

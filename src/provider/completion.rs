@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use candle_core::Tensor;
-use candle_transformers::generation::LogitsProcessor;
+use candle_transformers::generation::{LogitsProcessor, Sampling};
 use rig::completion::{
     AssistantContent, CompletionError, CompletionModel, CompletionRequest, CompletionResponse,
     Message, Usage,
@@ -240,16 +240,10 @@ fn run_inference_streaming(
     let seed = model.config.seed.unwrap_or(42);
     let temperature = model.config.temperature;
     let top_p = model.config.top_p;
+    let top_k = model.config.top_k;
+    let suppress_mask = model.suppress_mask.as_ref();
 
-    let mut logits_processor = LogitsProcessor::new(
-        seed,
-        if temperature > 0.0 {
-            Some(temperature)
-        } else {
-            None
-        },
-        if top_p < 1.0 { Some(top_p) } else { None },
-    );
+    let mut logits_processor = build_logits_processor(seed, temperature, top_p, top_k);
 
     // Full prefill — always reset KV cache and process all tokens in one batch.
     // Candle's causal mask doesn't support multi-token forward with existing cache,
@@ -272,7 +266,8 @@ fn run_inference_streaming(
         "Prefill complete"
     );
 
-    // Sample first token
+    // Sample first token (apply CJK suppression mask if present)
+    let logits = apply_suppress_mask(&logits, suppress_mask)?;
     let mut next_token = logits_processor.sample(&logits)?;
     let mut generated_tokens: Vec<u32> = vec![next_token];
 
@@ -294,14 +289,13 @@ fn run_inference_streaming(
         .decode(&generated_tokens, true)
         .map_err(|e| anyhow::anyhow!("Decode failed: {e}"))?;
     let incremental = &decoded[prev_text.len()..];
-    if !incremental.is_empty() {
-        if tx
+    if !incremental.is_empty()
+        && tx
             .blocking_send(Ok(RawStreamingChoice::Message(incremental.to_string())))
             .is_err()
-        {
-            // Receiver dropped, abort generation
-            return Ok(());
-        }
+    {
+        // Receiver dropped, abort generation
+        return Ok(());
     }
     prev_text = decoded;
 
@@ -316,6 +310,7 @@ fn run_inference_streaming(
             .forward(&input, total_prompt_len + i)?;
         let logits = logits.squeeze(0)?;
 
+        let logits = apply_suppress_mask(&logits, suppress_mask)?;
         next_token = logits_processor.sample(&logits)?;
 
         let token_ms = token_start.elapsed().as_millis() as u64;
@@ -335,13 +330,12 @@ fn run_inference_streaming(
             .decode(&generated_tokens, true)
             .map_err(|e| anyhow::anyhow!("Decode failed: {e}"))?;
         let incremental = &decoded[prev_text.len()..];
-        if !incremental.is_empty() {
-            if tx
+        if !incremental.is_empty()
+            && tx
                 .blocking_send(Ok(RawStreamingChoice::Message(incremental.to_string())))
                 .is_err()
-            {
-                return Ok(());
-            }
+        {
+            return Ok(());
         }
         prev_text = decoded;
     }
@@ -413,16 +407,10 @@ fn run_inference(
     let seed = model.config.seed.unwrap_or(42);
     let temperature = model.config.temperature;
     let top_p = model.config.top_p;
+    let top_k = model.config.top_k;
+    let suppress_mask = model.suppress_mask.as_ref();
 
-    let mut logits_processor = LogitsProcessor::new(
-        seed,
-        if temperature > 0.0 {
-            Some(temperature)
-        } else {
-            None
-        },
-        if top_p < 1.0 { Some(top_p) } else { None },
-    );
+    let mut logits_processor = build_logits_processor(seed, temperature, top_p, top_k);
 
     // Process all prompt tokens at once (prefill)
     let prompt_tensor = Tensor::new(prompt_tokens, &device)?.unsqueeze(0)?;
@@ -442,7 +430,8 @@ fn run_inference(
         "Prefill complete"
     );
 
-    // Sample first token
+    // Sample first token (apply CJK suppression mask if present)
+    let logits = apply_suppress_mask(&logits, suppress_mask)?;
     let mut next_token = logits_processor.sample(&logits)?;
     let mut generated_tokens: Vec<u32> = vec![next_token];
 
@@ -469,6 +458,7 @@ fn run_inference(
             .forward(&input, prompt_tokens.len() + i)?;
         let logits = logits.squeeze(0)?;
 
+        let logits = apply_suppress_mask(&logits, suppress_mask)?;
         next_token = logits_processor.sample(&logits)?;
 
         let token_ms = token_start.elapsed().as_millis() as u64;
@@ -510,6 +500,63 @@ fn run_inference(
         text,
         tokens_generated,
     })
+}
+
+/// Applies a suppression mask to logits if present.
+///
+/// Adds the mask (containing `-inf` at suppressed positions) to the logits tensor,
+/// effectively preventing those tokens from being sampled. If the mask is smaller
+/// than the logits (e.g., tokenizer vocab < padded model vocab), it is zero-padded
+/// to match. Returns the original logits unchanged if no mask is provided.
+fn apply_suppress_mask(logits: &Tensor, mask: Option<&Tensor>) -> candle_core::Result<Tensor> {
+    match mask {
+        Some(m) => {
+            let logits_len = logits.dim(0)?;
+            let mask_len = m.dim(0)?;
+            if mask_len < logits_len {
+                let padding = Tensor::zeros(logits_len - mask_len, m.dtype(), m.device())?;
+                let padded = Tensor::cat(&[m, &padding], 0)?;
+                logits.broadcast_add(&padded)
+            } else {
+                logits.broadcast_add(m)
+            }
+        }
+        None => Ok(logits.clone()),
+    }
+}
+
+/// Builds a `LogitsProcessor` with the appropriate sampling strategy.
+///
+/// Selects the strategy based on which parameters are active:
+/// - `top_k > 0` and `top_p < 1.0`: `TopKThenTopP` (Qwen3 recommended)
+/// - `top_k > 0`: `TopK` only
+/// - `top_p < 1.0`: `TopP` only
+/// - temperature only: `All` (temperature sampling)
+/// - temperature <= 0: `ArgMax` (greedy)
+fn build_logits_processor(seed: u64, temperature: f64, top_p: f64, top_k: usize) -> LogitsProcessor {
+    let sampling = if temperature <= 0.0 {
+        Sampling::ArgMax
+    } else if top_k > 0 && top_p < 1.0 {
+        Sampling::TopKThenTopP {
+            k: top_k,
+            p: top_p,
+            temperature,
+        }
+    } else if top_k > 0 {
+        Sampling::TopK {
+            k: top_k,
+            temperature,
+        }
+    } else if top_p < 1.0 {
+        Sampling::TopP {
+            p: top_p,
+            temperature,
+        }
+    } else {
+        Sampling::All { temperature }
+    };
+
+    LogitsProcessor::from_sampling(seed, sampling)
 }
 
 #[cfg(test)]

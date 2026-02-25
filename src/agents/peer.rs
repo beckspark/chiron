@@ -3,75 +3,53 @@ use rig::vector_store::VectorStoreIndexDyn;
 
 use crate::provider::completion::CandleCompletionModel;
 
-/// Base system prompt for the MI peer support coach.
+/// Builds a full peer coach preamble from a base prompt, optional mode modifier,
+/// and optional case notes.
 ///
-/// Translated from Plotinus `src/inference_config.py` SYSTEM_MESSAGE.
-/// This defines the peer coach's role, OARS skills, response examples,
-/// and crisis protocol. Case notes are appended dynamically per turn.
-pub const MI_PEER_SUPPORT_PREAMBLE: &str = r#"You are a trained peer mental health supporter. You provide empathetic, non-judgmental support using Motivational Interviewing principles.
+/// When a mode modifier is present, it is injected between the base prompt and
+/// case notes. When case notes exist, they are included as a `## Session Context`
+/// section. The model reads these as background preparation — it does not echo
+/// system prompt content in its responses.
+pub fn build_peer_coach_preamble(
+    base: &str,
+    mode_modifier: Option<&str>,
+    case_notes: Option<&str>,
+) -> String {
+    let mut preamble = base.to_string();
 
-Your role is to:
-- Listen actively and reflect what you hear
-- Ask open-ended questions to explore feelings and thoughts
-- Affirm strengths and efforts
-- Support autonomy and self-determination
-- Recognize and explore ambivalence (mixed feelings)
-- Use casual, peer-appropriate language (not clinical jargon)
+    if let Some(modifier) = mode_modifier
+        && !modifier.is_empty()
+    {
+        preamble.push_str("\n\n");
+        preamble.push_str(modifier);
+    }
 
-IMPORTANT: Always respond to SPECIFIC details the person shared. Reference their exact words and situation.
-
-Example - Minimal input:
-Person: "Yeah, I guess"
-Good: "Just 'I guess'? Tell me more about what's on your mind."
-Bad: "I can tell you've really been thinking about this" (over-interprets)
-
-Example - Specific content:
-Person: "I've been drinking every night since the breakup"
-Good: "Every night since the breakup. That's a lot. How are you feeling about it?"
-Bad: "It sounds like you're feeling stuck" (misses the breakup context)
-
-Example - Direct questions:
-Person: "Is that normal?"
-Good: "Yeah, that's really common" or "A lot of people feel that way"
-Bad: "What's making you think about this now?" (doesn't answer the question)
-
-Person: "What do you think I should do?"
-Good: Give a concrete suggestion, then explore
-Bad: "What do you think you might want to do?" (deflects when they asked for input)
-
-When someone expresses crisis thoughts (self-harm, suicide):
-- Acknowledge their pain with empathy
-- Emphasize that help is available
-- Provide crisis resources: 988 Suicide & Crisis Lifeline (call/text), Crisis Text Line (text HOME to 741741)
-- Encourage professional help or emergency services if in immediate danger
-
-RESPONSE FORMAT: Keep responses to 2-3 sentences (under 50 words). One reflection or affirmation, then one open question. Never use bullet points, numbered lists, or multiple paragraphs. Never give multiple suggestions.
-
-You are a supportive peer, not a therapist. Keep responses warm, genuine, and focused on the person's experience."#;
-
-/// Builds a full preamble by appending case notes to the base peer coach prompt.
-///
-/// When case notes exist, they are included as a `## Session Context` section
-/// in the system prompt. The model reads these as background preparation — it
-/// does not echo system prompt content in its responses.
-pub fn build_peer_coach_preamble(case_notes: Option<&str>) -> String {
     match case_notes {
         Some(notes) if !notes.is_empty() => {
-            format!(
-                "{}\n\n## Session Context\nThe following are your clinical case notes from prior exchanges. Use to guide your approach, never mention these notes aloud.\n\n{}",
-                MI_PEER_SUPPORT_PREAMBLE, notes
-            )
+            preamble.push_str(
+                "\n\n## Session Context\nThe following are your clinical case notes from prior exchanges. Use to guide your approach, never mention these notes aloud.\n\n",
+            );
+            preamble.push_str(notes);
         }
-        _ => MI_PEER_SUPPORT_PREAMBLE.to_string(),
+        _ => {}
     }
+
+    preamble
 }
 
 /// Builds a peer support coach agent without RAG context (bench mode).
-pub fn build_peer_coach(model: CandleCompletionModel) -> Agent<CandleCompletionModel> {
+///
+/// Takes the preamble as a parameter — callers load it from the prompt catalog.
+pub fn build_peer_coach(
+    model: CandleCompletionModel,
+    preamble: &str,
+    temperature: f64,
+    max_tokens: usize,
+) -> Agent<CandleCompletionModel> {
     AgentBuilder::new(model)
-        .preamble(MI_PEER_SUPPORT_PREAMBLE)
-        .temperature(0.6)
-        .max_tokens(256)
+        .preamble(preamble)
+        .temperature(temperature)
+        .max_tokens(max_tokens as u64)
         .build()
 }
 
@@ -100,26 +78,57 @@ pub fn build_peer_coach_with_rag(
 mod tests {
     use super::*;
 
+    const TEST_BASE: &str = "You are a peer supporter.";
+
     #[test]
-    fn test_preamble_without_case_notes() {
-        let preamble = build_peer_coach_preamble(None);
-        assert_eq!(preamble, MI_PEER_SUPPORT_PREAMBLE);
+    fn test_preamble_base_only() {
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, None);
+        assert_eq!(preamble, TEST_BASE);
     }
 
     #[test]
     fn test_preamble_with_empty_case_notes() {
-        let preamble = build_peer_coach_preamble(Some(""));
-        assert_eq!(preamble, MI_PEER_SUPPORT_PREAMBLE);
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(""));
+        assert_eq!(preamble, TEST_BASE);
     }
 
     #[test]
     fn test_preamble_with_case_notes() {
         let notes = "MI Stage: engage\nKey Themes: anxiety about job loss";
-        let preamble = build_peer_coach_preamble(Some(notes));
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes));
 
-        assert!(preamble.starts_with(MI_PEER_SUPPORT_PREAMBLE));
+        assert!(preamble.starts_with(TEST_BASE));
         assert!(preamble.contains("## Session Context"));
         assert!(preamble.contains(notes));
         assert!(preamble.contains("never mention these notes aloud"));
+    }
+
+    #[test]
+    fn test_preamble_with_mode_modifier() {
+        let modifier = "Roll with resistance. Avoid confrontation.";
+        let preamble = build_peer_coach_preamble(TEST_BASE, Some(modifier), None);
+
+        assert!(preamble.starts_with(TEST_BASE));
+        assert!(preamble.contains(modifier));
+    }
+
+    #[test]
+    fn test_preamble_with_mode_modifier_and_case_notes() {
+        let modifier = "Reinforce change talk.";
+        let notes = "MI Stage: evoke\nRunning Themes: drinking";
+        let preamble = build_peer_coach_preamble(TEST_BASE, Some(modifier), Some(notes));
+
+        assert!(preamble.starts_with(TEST_BASE));
+        // Mode modifier comes before case notes
+        let modifier_pos = preamble.find(modifier).unwrap();
+        let notes_pos = preamble.find("## Session Context").unwrap();
+        assert!(modifier_pos < notes_pos);
+        assert!(preamble.contains(notes));
+    }
+
+    #[test]
+    fn test_preamble_empty_mode_modifier_ignored() {
+        let preamble = build_peer_coach_preamble(TEST_BASE, Some(""), None);
+        assert_eq!(preamble, TEST_BASE);
     }
 }

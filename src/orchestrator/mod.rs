@@ -12,26 +12,34 @@ use rig_sqlite::SqliteVectorStore;
 use tokio_rusqlite::Connection;
 
 use crate::agents::peer::{build_peer_coach_preamble, build_peer_coach_with_rag};
+use crate::eval::catalog::{ModesCatalog, PromptVariant};
 use crate::memory;
 use crate::memory::case_notes;
 use crate::memory::store::MiKnowledge;
 use crate::provider::completion::CandleCompletionModel;
+use crate::router::ModeRouter;
 
 /// Result of a single conversation turn through the orchestrator pipeline.
 #[derive(Debug)]
 pub struct TurnResult {
     pub response: String,
+    /// The conversation mode detected by the semantic router (e.g., "crisis", "engagement").
+    pub detected_mode: Option<String>,
+    /// Cosine similarity confidence of the route classification (0.0–1.0).
+    pub route_confidence: Option<f64>,
 }
 
-/// Two-agent reflection pipeline using SmolLM3 3B with persistent case notes.
+/// Mode-routed pipeline with catalog-driven prompts and persistent case notes.
 ///
 /// Pipeline per turn:
-/// 1. Load latest case notes from DB
-/// 2. Build peer coach with case notes in system prompt (streaming, with RAG)
-/// 3. After response: run supervisor to update case notes (non-streaming)
+/// 1. Classify user message into conversation mode via `ModeRouter`
+/// 2. Load latest case notes from DB
+/// 3. Build peer coach with catalog preamble + mode modifier + case notes in system prompt (streaming, with RAG)
+/// 4. After response: run supervisor to update case notes (non-streaming)
+/// 5. Save turn to DB + update history
 ///
-/// The reflection loop: coach reads notes → responds → supervisor critiques →
-/// writes updated notes → coach reads notes → ...
+/// The reflection loop: coach reads notes -> responds -> supervisor critiques ->
+/// writes updated notes -> coach reads notes -> ...
 pub struct Orchestrator<E>
 where
     E: EmbeddingModel + Clone + 'static,
@@ -40,14 +48,18 @@ where
     peer_coach_model: CandleCompletionModel,
     /// Pre-built supervisor agent (preamble is static, no RAG needed).
     supervisor: Agent<CandleCompletionModel>,
+    /// Coach prompt variant loaded from the catalog.
+    coach_variant: PromptVariant,
+    /// Semantic router for classifying user messages into conversation modes.
+    mode_router: ModeRouter<E>,
+    /// Mode definitions for looking up coach modifiers by mode ID.
+    modes_catalog: ModesCatalog,
     /// Cloneable vector store — cloned each turn to create a fresh index for the peer coach.
     knowledge_store: SqliteVectorStore<E, MiKnowledge>,
     /// Embedding model for creating search indexes from the knowledge store.
     embedding_model: E,
     /// Number of RAG results to inject per query.
     rag_top_k: usize,
-    /// Maximum tokens for the peer coach response.
-    coach_max_tokens: usize,
     chat_history: Vec<Message>,
     session_id: String,
     chat_conn: Connection,
@@ -56,25 +68,29 @@ where
 
 impl<E> Orchestrator<E>
 where
-    E: EmbeddingModel + Clone + 'static,
+    E: EmbeddingModel + Clone + Sync + 'static,
 {
     pub fn new(
         peer_coach_model: CandleCompletionModel,
         supervisor: Agent<CandleCompletionModel>,
+        coach_variant: PromptVariant,
+        mode_router: ModeRouter<E>,
+        modes_catalog: ModesCatalog,
         knowledge_store: SqliteVectorStore<E, MiKnowledge>,
         embedding_model: E,
         rag_top_k: usize,
-        coach_max_tokens: usize,
         session_id: String,
         chat_conn: Connection,
     ) -> Self {
         Self {
             peer_coach_model,
             supervisor,
+            coach_variant,
+            mode_router,
+            modes_catalog,
             knowledge_store,
             embedding_model,
             rag_top_k,
-            coach_max_tokens,
             chat_history: Vec::new(),
             session_id,
             chat_conn,
@@ -88,27 +104,45 @@ where
         self.turn_number = 0;
     }
 
-    /// Runs one full conversation turn through the two-agent pipeline.
+    /// Runs one full conversation turn through the mode-routed pipeline.
     ///
-    /// 1. Load latest case notes from DB
-    /// 2. Build peer coach with case notes in system prompt + RAG
-    /// 3. Stream peer coach response
-    /// 4. Run supervisor (non-streaming, after response printed)
-    /// 5. Save turn to DB + update history
+    /// 1. Classify user message into conversation mode
+    /// 2. Load latest case notes from DB
+    /// 3. Build peer coach with catalog preamble + mode modifier + case notes + RAG
+    /// 4. Stream peer coach response
+    /// 5. Run supervisor (non-streaming, after response printed)
+    /// 6. Save turn to DB + update history
     #[tracing::instrument(level = "info", skip(self))]
     pub async fn run_turn(&mut self, input: &str) -> Result<TurnResult> {
         let turn_start = Instant::now();
         self.turn_number += 1;
 
-        // Step 1: Load latest case notes
+        // Step 1: Classify user message into conversation mode
+        let route = self.mode_router.classify(input).await?;
+        let mode_modifier = self
+            .modes_catalog
+            .get_mode(&route.mode_id)
+            .map(|m| m.coach_modifier.as_str());
+
+        tracing::info!(
+            mode = %route.mode_id,
+            confidence = route.confidence,
+            "Route classified"
+        );
+
+        // Step 2: Load latest case notes
         let existing_notes = case_notes::get_latest_case_note(&self.chat_conn).await?;
         tracing::info!(
             found = existing_notes.is_some(),
             "Loading latest case notes from DB"
         );
 
-        // Step 2: Build peer coach with case notes in preamble + RAG
-        let preamble = build_peer_coach_preamble(existing_notes.as_deref());
+        // Step 3: Build peer coach with catalog preamble + mode modifier + case notes + RAG
+        let preamble = build_peer_coach_preamble(
+            &self.coach_variant.preamble,
+            mode_modifier,
+            existing_notes.as_deref(),
+        );
         let knowledge_index = self
             .knowledge_store
             .clone()
@@ -118,27 +152,32 @@ where
             &preamble,
             knowledge_index,
             self.rag_top_k,
-            self.coach_max_tokens,
+            self.coach_variant.max_tokens,
         );
 
-        // Step 3: Stream peer coach response
+        // Step 4: Stream peer coach response
         let response = self
             .stream_peer_coach(&peer_coach, input)
             .await?;
 
-        // Step 4: Supervisor case notes update (runs after response is printed)
+        // Step 5: Supervisor case notes update (runs after response is printed)
         self.run_supervisor(input, &response, existing_notes.as_deref())
             .await?;
 
-        // Step 5: Save turn to DB + update history
+        // Step 6: Save turn to DB + update history
         self.save_and_record(input, &response).await?;
 
         tracing::info!(
+            mode = %route.mode_id,
             total_ms = turn_start.elapsed().as_millis() as u64,
             "Turn complete"
         );
 
-        Ok(TurnResult { response })
+        Ok(TurnResult {
+            response,
+            detected_mode: Some(route.mode_id),
+            route_confidence: Some(route.confidence),
+        })
     }
 
     /// Streams the peer coach response, printing tokens to stdout as they arrive.
@@ -284,7 +323,7 @@ where
 /// The 3B model often copies the exchange prompt into its output. If left in,
 /// these blocks accumulate across turns (snowball effect), consuming the
 /// supervisor's token budget with repeated old exchanges instead of analysis.
-fn strip_echoed_exchanges(notes: &str) -> String {
+pub(crate) fn strip_echoed_exchanges(notes: &str) -> String {
     match notes.find("LATEST EXCHANGE:") {
         Some(pos) => notes[..pos].trim_end().to_string(),
         None => notes.to_string(),
@@ -295,7 +334,7 @@ fn strip_echoed_exchanges(notes: &str) -> String {
 ///
 /// Matches lines like `MI Stage: engage`, `**MI Stage:** evoke`, or
 /// `**MI Stage: focus**`. Returns the stage as a lowercase trimmed string.
-fn extract_mi_stage(notes: &str) -> Option<String> {
+pub(crate) fn extract_mi_stage(notes: &str) -> Option<String> {
     notes
         .lines()
         .map(|l| l.replace("**", ""))
@@ -310,7 +349,7 @@ fn extract_mi_stage(notes: &str) -> Option<String> {
 ///
 /// Handles markdown bold formatting (`**Running Themes:**`). Returns themes
 /// as a lowercased, trimmed vector preserving original order.
-fn extract_themes(notes: &str) -> Option<Vec<String>> {
+pub(crate) fn extract_themes(notes: &str) -> Option<Vec<String>> {
     notes
         .lines()
         .map(|l| l.replace("**", ""))
@@ -324,7 +363,7 @@ fn extract_themes(notes: &str) -> Option<Vec<String>> {
             let themes: Vec<String> = trimmed
                 .split(',')
                 .map(|t| t.trim().to_lowercase())
-                .filter(|t| !t.is_empty())
+                .filter(|t| !t.is_empty() && t != "none" && t != "n/a")
                 .collect();
             if themes.is_empty() {
                 None
@@ -339,7 +378,7 @@ fn extract_themes(notes: &str) -> Option<Vec<String>> {
 /// Previous themes keep their original order. New themes not already present
 /// are appended at the end. Comparison is case-insensitive (all values are
 /// expected to be lowercased by `extract_themes`).
-fn merge_themes(previous: &[String], new: &[String]) -> Vec<String> {
+pub(crate) fn merge_themes(previous: &[String], new: &[String]) -> Vec<String> {
     let mut seen: HashSet<String> = previous.iter().cloned().collect();
     let mut merged: Vec<String> = previous.to_vec();
 
@@ -356,7 +395,7 @@ fn merge_themes(previous: &[String], new: &[String]) -> Vec<String> {
 ///
 /// If no `Running Themes:` line exists, appends one. Handles markdown bold
 /// formatting in the existing line.
-fn replace_themes_line(notes: &str, merged: &[String]) -> String {
+pub(crate) fn replace_themes_line(notes: &str, merged: &[String]) -> String {
     let new_line = format!("Running Themes: {}", merged.join(", "));
 
     let mut found = false;
@@ -385,7 +424,7 @@ fn replace_themes_line(notes: &str, merged: &[String]) -> String {
 /// Only passes PREVIOUS MI STAGE and PREVIOUS THEMES to the model — not the
 /// full previous notes. This eliminates the copy source for "What Changed"
 /// and "Coach Effectiveness", forcing extraction from the exchange.
-fn build_supervisor_prompt(input: &str, response: &str, existing_notes: Option<&str>) -> String {
+pub(crate) fn build_supervisor_prompt(input: &str, response: &str, existing_notes: Option<&str>) -> String {
     let prev_stage = existing_notes
         .and_then(extract_mi_stage)
         .unwrap_or_else(|| "none".to_string());
@@ -531,6 +570,24 @@ mod tests {
     fn test_extract_themes_none_value() {
         let notes = "Running Themes: none";
         assert_eq!(extract_themes(notes), None);
+    }
+
+    #[test]
+    fn test_extract_themes_none_among_real_themes() {
+        let notes = "Running Themes: feeling down, none";
+        assert_eq!(
+            extract_themes(notes),
+            Some(vec!["feeling down".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_extract_themes_na_filtered() {
+        let notes = "Running Themes: drinking, n/a, sleep";
+        assert_eq!(
+            extract_themes(notes),
+            Some(vec!["drinking".to_string(), "sleep".to_string()])
+        );
     }
 
     // --- merge_themes tests ---
