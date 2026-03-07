@@ -1,24 +1,14 @@
 [package]
 name = "chiron"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
-# ML inference
-candle-core = { version = "0.9.2", features = ["cuda"] }
-candle-nn = { version = "0.9.2", features = ["cuda"] }
-candle-transformers = { version = "0.9.2", features = ["cuda"] }
-tokenizers = "0.21"
+# LLM inference via llama.cpp
+llama-cpp-2 = { version = "0.1.138", features = ["cuda"] }
 
 # Agent framework
 rig-core = "0.30"
-
-# RAG: vector store + local embeddings
-rig-sqlite = "0.1"
-rig-fastembed = "0.2"
-tokio-rusqlite = "0.6"
-rusqlite = "0.32"
-sqlite-vec = "0.1"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
@@ -40,8 +30,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3.31"
 tokio-stream = "0.1"
 
-# Chat template rendering (HF Jinja2 templates)
-minijinja = { version = "2", features = ["loader"] }
+# Database (chat history + case notes)
+tokio-rusqlite = "0.6"
+rusqlite = "0.32"
+
+# UTF-8 decoding for llama.cpp token output
+encoding_rs = "0.8"
 
 [profile.release]
 opt-level = 3

@@ -1,10 +1,8 @@
 use anyhow::{Context, Result};
+use rusqlite::OptionalExtension;
 use tokio_rusqlite::Connection;
 
 /// Creates the case_notes table and index if they don't exist.
-///
-/// Case notes track the user's MI journey across sessions: stage progression,
-/// change talk observations, strategy assessments, and key themes.
 pub async fn create_case_notes_table(conn: &Connection) -> Result<()> {
     conn.call(|conn| {
         conn.execute_batch(
@@ -53,9 +51,6 @@ pub async fn save_case_note(
 }
 
 /// Loads the most recent case note content from any session.
-///
-/// Returns `None` if no case notes exist (first turn of the first session).
-/// Cross-session persistence: the latest note carries forward to new sessions.
 pub async fn get_latest_case_note(conn: &Connection) -> Result<Option<String>> {
     let result = conn
         .call(|conn| {
@@ -73,24 +68,18 @@ pub async fn get_latest_case_note(conn: &Connection) -> Result<Option<String>> {
     Ok(result)
 }
 
-// Re-export optional for the query
-use rusqlite::OptionalExtension;
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[tokio::test]
     async fn test_create_table_and_insert() {
-        crate::memory::init_sqlite_vec();
         let conn = Connection::open(":memory:").await.unwrap();
         create_case_notes_table(&conn).await.unwrap();
 
-        // No notes initially
         let latest = get_latest_case_note(&conn).await.unwrap();
         assert!(latest.is_none());
 
-        // Save a note
         save_case_note(&conn, "session_1", 1, Some("engage"), "Initial contact.")
             .await
             .unwrap();
@@ -101,7 +90,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_latest_note_returns_most_recent() {
-        crate::memory::init_sqlite_vec();
         let conn = Connection::open(":memory:").await.unwrap();
         create_case_notes_table(&conn).await.unwrap();
 
