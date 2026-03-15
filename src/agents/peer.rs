@@ -1,10 +1,24 @@
 use rig::agent::{Agent, AgentBuilder};
 
+use crate::catalog::ModeCatalog;
 use crate::provider::LlamaCppCompletionModel;
 
 /// Builds a full peer coach preamble from a base prompt and optional case notes.
-pub fn build_peer_coach_preamble(base: &str, case_notes: Option<&str>) -> String {
+///
+/// Injects think block structure, case notes, stage-matched MI technique guidance,
+/// and mode-specific coaching modifiers into the system prompt.
+pub fn build_peer_coach_preamble(
+    base: &str,
+    think_instructions: Option<&str>,
+    case_notes: Option<&str>,
+    mode_catalog: Option<&ModeCatalog>,
+) -> String {
     let mut preamble = base.to_string();
+
+    if let Some(instructions) = think_instructions {
+        preamble.push_str("\n\n");
+        preamble.push_str(instructions);
+    }
 
     match case_notes {
         Some(notes) if !notes.is_empty() => {
@@ -12,11 +26,65 @@ pub fn build_peer_coach_preamble(base: &str, case_notes: Option<&str>) -> String
                 "\n\n## Session Context\nThe following are your clinical case notes from prior exchanges. Use to guide your approach, never mention these notes aloud.\n\n",
             );
             preamble.push_str(notes);
+
+            // Inject stage-matched technique guidance
+            if let Some(guidance) = stage_guidance(notes) {
+                preamble.push_str("\n\n## Technique Guidance\n");
+                preamble.push_str(guidance);
+            }
+
+            // Inject mode-specific coaching modifier based on detected strategy
+            if let Some(catalog) = mode_catalog {
+                if let Some(modifier) = detect_mode_modifier(notes, catalog) {
+                    preamble.push_str("\n\n## Current Mode\n");
+                    preamble.push_str(modifier);
+                }
+            }
         }
         _ => {}
     }
 
     preamble
+}
+
+/// Detects the conversation mode from case notes and returns the coach modifier.
+///
+/// Maps strategy keywords in case notes to mode IDs in the catalog.
+fn detect_mode_modifier<'a>(case_notes: &str, catalog: &'a ModeCatalog) -> Option<&'a str> {
+    let lower = case_notes.to_lowercase();
+
+    // Check for strategy signals that map to modes
+    let mode_id = if lower.contains("rolling with resistance") || lower.contains("resistance") {
+        "resistance"
+    } else if lower.contains("reinforce") || lower.contains("change talk") {
+        "change-talk"
+    } else if lower.contains("discrepancy") || lower.contains("ambivalence") || lower.contains("double-sided") {
+        "ambivalence"
+    } else if lower.contains("mi stage: engage") {
+        "engagement"
+    } else {
+        return None;
+    };
+
+    catalog.get_mode(mode_id).map(|m| m.coach_modifier.as_str())
+}
+
+/// Returns MI technique guidance appropriate for the detected stage.
+fn stage_guidance(case_notes: &str) -> Option<&'static str> {
+    let lower = case_notes.to_lowercase();
+    let stage = lower
+        .lines()
+        .find(|l| l.trim().starts_with("mi stage:"))?;
+    let (_, value) = stage.split_once(':')?;
+    let stage = value.trim();
+
+    Some(match stage {
+        "engage" => "Focus on rapport: open questions, simple reflections. Don't push for change yet.",
+        "focus" => "Direction is emerging. Clarify the target behavior with open questions. Reflect what matters to them.",
+        "evoke" => "Draw out change talk: DARN questions (desire, ability, reasons, need). Use elaboration, values discrepancy, and selective summary of change talk.",
+        "plan" => "They're showing commitment. Explore concrete steps. Support their plan with affirmations. Ask what they'll do first.",
+        _ => return None,
+    })
 }
 
 /// Builds a peer support coach agent (bench mode, no case notes).
@@ -41,24 +109,42 @@ mod tests {
 
     #[test]
     fn test_preamble_base_only() {
-        let preamble = build_peer_coach_preamble(TEST_BASE, None);
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, None, None);
         assert_eq!(preamble, TEST_BASE);
     }
 
     #[test]
     fn test_preamble_with_empty_case_notes() {
-        let preamble = build_peer_coach_preamble(TEST_BASE, Some(""));
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(""), None);
         assert_eq!(preamble, TEST_BASE);
     }
 
     #[test]
     fn test_preamble_with_case_notes() {
         let notes = "MI Stage: engage\nKey Themes: anxiety about job loss";
-        let preamble = build_peer_coach_preamble(TEST_BASE, Some(notes));
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None);
 
         assert!(preamble.starts_with(TEST_BASE));
         assert!(preamble.contains("## Session Context"));
         assert!(preamble.contains(notes));
         assert!(preamble.contains("never mention these notes aloud"));
+    }
+
+    #[test]
+    fn test_preamble_with_stage_guidance() {
+        let notes = "MI Stage: evoke\nRunning Themes: drinking";
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None);
+
+        assert!(preamble.contains("## Technique Guidance"));
+        assert!(preamble.contains("DARN questions"));
+    }
+
+    #[test]
+    fn test_preamble_engage_guidance() {
+        let notes = "MI Stage: engage\nRunning Themes: anxiety";
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None);
+
+        assert!(preamble.contains("## Technique Guidance"));
+        assert!(preamble.contains("rapport"));
     }
 }

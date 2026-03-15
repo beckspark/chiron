@@ -7,6 +7,9 @@ use serde::Deserialize;
 /// A collection of prompt variants loaded from a TOML catalog file.
 #[derive(Deserialize)]
 pub struct PromptCatalog {
+    /// Instructions appended to the preamble telling the model how to
+    /// structure its think block (stage, strategy, talk type, themes).
+    pub think_instructions: Option<String>,
     pub variants: Vec<PromptVariant>,
 }
 
@@ -41,6 +44,36 @@ pub struct PromptVariant {
     pub preamble: String,
 }
 
+/// A collection of conversation modes loaded from modes.toml.
+#[derive(Deserialize, Clone)]
+pub struct ModeCatalog {
+    pub modes: Vec<ConversationMode>,
+}
+
+/// A conversation mode with detection triggers and coach modifier.
+#[derive(Debug, Deserialize, Clone)]
+pub struct ConversationMode {
+    pub id: String,
+    pub description: String,
+    pub coach_modifier: String,
+    pub utterances: Vec<String>,
+}
+
+impl ModeCatalog {
+    /// Loads a mode catalog from a TOML file.
+    pub fn load(path: &Path) -> Result<Self> {
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read {}", path.display()))?;
+        toml::from_str(&content)
+            .with_context(|| format!("Failed to parse {}", path.display()))
+    }
+
+    /// Returns the mode whose ID matches, if any.
+    pub fn get_mode(&self, id: &str) -> Option<&ConversationMode> {
+        self.modes.iter().find(|m| m.id == id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -62,5 +95,16 @@ mod tests {
         let catalog = PromptCatalog::load(&prompts_dir().join("coach.toml")).unwrap();
         let result = catalog.get_variant("nonexistent");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_mode_catalog() {
+        let catalog = ModeCatalog::load(&prompts_dir().join("modes.toml")).unwrap();
+        assert_eq!(catalog.modes.len(), 5);
+        assert!(catalog.get_mode("crisis").is_some());
+        assert!(catalog.get_mode("resistance").is_some());
+        assert!(catalog.get_mode("change-talk").is_some());
+        assert!(catalog.get_mode("ambivalence").is_some());
+        assert!(catalog.get_mode("engagement").is_some());
     }
 }

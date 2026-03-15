@@ -7,98 +7,56 @@ pub struct ThinkAnalysis {
     pub mi_stage: Option<String>,
     /// Strategy the model chose (e.g., "complex reflection", "open question").
     pub strategy_used: Option<String>,
+    /// Talk type classification (e.g., "desire change talk", "sustain talk").
+    pub talk_type: Option<String>,
     /// Themes mentioned in the think block.
     pub themes: Vec<String>,
     /// Raw think block content for logging.
     pub raw_think: String,
 }
 
-/// Analyzes think block content using keyword heuristics.
+/// Analyzes think block content by parsing structured tags the model produces.
+///
+/// Expects the model to include tags like:
+/// - `[MI-STAGE: evoke]`
+/// - `[STRATEGY: complex reflection]`
+/// - `[TALK-TYPE: desire change talk]`
+/// - `[THEMES: drinking, anxiety, sleep]`
 pub fn analyze_think_block(think_content: &str) -> ThinkAnalysis {
-    let lower = think_content.to_lowercase();
-
-    let mi_stage = detect_mi_stage(&lower);
-    let strategy_used = detect_strategy(&lower);
-    let themes = extract_themes_from_think(&lower);
+    let mi_stage = parse_tag(think_content, "MI-STAGE");
+    let strategy_used = parse_tag(think_content, "STRATEGY");
+    let talk_type = parse_tag(think_content, "TALK-TYPE");
+    let themes = parse_tag(think_content, "THEMES")
+        .map(|t| {
+            t.split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
     ThinkAnalysis {
         mi_stage,
         strategy_used,
+        talk_type,
         themes,
         raw_think: think_content.to_string(),
     }
 }
 
-/// Detects MI stage from think block keywords.
-fn detect_mi_stage(text: &str) -> Option<String> {
-    // Order matters — check more specific stages first
-    let stages = [
-        ("plan", &["planning", "action plan", "next step", "concrete step", "plan stage"][..]),
-        ("evoke", &["evoke", "evoking", "change talk", "elicit", "motivation", "ambivalence", "discrepancy"][..]),
-        ("focus", &["focus", "focusing", "agenda", "direction", "priorit"][..]),
-        ("engage", &["engage", "engaging", "rapport", "trust", "relationship", "build connection"][..]),
-    ];
-
-    for (stage, keywords) in &stages {
-        if keywords.iter().any(|k| text.contains(k)) {
-            return Some(stage.to_string());
-        }
+/// Parses a `[TAG: value]` from think block text. Case-insensitive tag match.
+fn parse_tag(text: &str, tag: &str) -> Option<String> {
+    let lower = text.to_lowercase();
+    let pattern = format!("[{}:", tag.to_lowercase());
+    let start = lower.find(&pattern)?;
+    let after_tag = start + pattern.len();
+    let end = text[after_tag..].find(']')?;
+    let value = text[after_tag..after_tag + end].trim();
+    if value.is_empty() || value.eq_ignore_ascii_case("none") {
+        None
+    } else {
+        Some(value.to_lowercase())
     }
-
-    None
-}
-
-/// Detects MI strategy from think block keywords.
-fn detect_strategy(text: &str) -> Option<String> {
-    let strategies = [
-        ("complex reflection", &["complex reflection", "deeper reflection", "meaning behind", "feels like"][..]),
-        ("simple reflection", &["simple reflection", "reflect back", "paraphrase"][..]),
-        ("affirmation", &["affirm", "strength", "acknowledge effort", "recognize"][..]),
-        ("open question", &["open question", "open-ended", "explore", "what do you", "how do you"][..]),
-        ("summarizing", &["summarize", "summary", "pulling together"][..]),
-        ("rolling with resistance", &["roll with", "resistance", "not arguing", "avoid confrontation"][..]),
-        ("developing discrepancy", &["discrepancy", "values", "gap between"][..]),
-        ("autonomy support", &["autonomy", "their choice", "up to them", "self-determination"][..]),
-    ];
-
-    for (strategy, keywords) in &strategies {
-        if keywords.iter().any(|k| text.contains(k)) {
-            return Some(strategy.to_string());
-        }
-    }
-
-    None
-}
-
-/// Extracts potential themes from think block text.
-fn extract_themes_from_think(text: &str) -> Vec<String> {
-    let theme_indicators = [
-        "drinking", "alcohol", "substance", "drug",
-        "breakup", "relationship", "partner", "divorce",
-        "anxiety", "anxious", "worried", "stress",
-        "depression", "depressed", "sad", "hopeless",
-        "sleep", "insomnia",
-        "work", "job", "career", "employment",
-        "family", "parent", "child", "sibling",
-        "grief", "loss", "death",
-        "anger", "frustrated", "resentment",
-        "isolation", "lonely", "alone",
-        "self-esteem", "confidence", "worth",
-        "trauma", "abuse",
-        "health", "pain", "chronic",
-        "financial", "money", "debt",
-    ];
-
-    let mut found: Vec<String> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-
-    for theme in &theme_indicators {
-        if text.contains(theme) && seen.insert(theme.to_string()) {
-            found.push(theme.to_string());
-        }
-    }
-
-    found
 }
 
 /// Extracts themes from the `Running Themes:` line in case notes.
@@ -152,62 +110,40 @@ pub fn merge_themes(previous: &[String], new: &[String]) -> Vec<String> {
     merged
 }
 
-/// Replaces the `Running Themes:` line in notes with merged themes.
-pub fn replace_themes_line(notes: &str, merged: &[String]) -> String {
-    let new_line = format!("Running Themes: {}", merged.join(", "));
-
-    let mut found = false;
-    let replaced: Vec<String> = notes
-        .lines()
-        .map(|l| {
-            let clean = l.replace("**", "");
-            if clean.trim().to_lowercase().starts_with("running themes:") {
-                found = true;
-                new_line.clone()
-            } else {
-                l.to_string()
-            }
-        })
-        .collect();
-
-    if found {
-        replaced.join("\n")
-    } else {
-        format!("{}\n{}", notes.trim_end(), new_line)
-    }
-}
-
-/// Strips echoed `LATEST EXCHANGE:` blocks from text.
-pub fn strip_echoed_exchanges(notes: &str) -> String {
-    match notes.find("LATEST EXCHANGE:") {
-        Some(pos) => notes[..pos].trim_end().to_string(),
-        None => notes.to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_analyze_think_block_evoke() {
-        let think = "The person is showing change talk about drinking. I should use a complex reflection to evoke more motivation.";
+    fn test_parse_structured_tags() {
+        let think = "They're opening up about drinking.\n[MI-STAGE: evoke]\n[STRATEGY: complex reflection]\n[TALK-TYPE: desire change talk]\n[THEMES: drinking, anxiety]";
         let analysis = analyze_think_block(think);
         assert_eq!(analysis.mi_stage, Some("evoke".to_string()));
         assert_eq!(analysis.strategy_used, Some("complex reflection".to_string()));
-        assert!(analysis.themes.contains(&"drinking".to_string()));
+        assert_eq!(analysis.talk_type, Some("desire change talk".to_string()));
+        assert_eq!(analysis.themes, vec!["drinking", "anxiety"]);
     }
 
     #[test]
-    fn test_analyze_think_block_engage() {
-        let think = "Building rapport with this person. They seem anxious about opening up.";
+    fn test_parse_tags_case_insensitive() {
+        let think = "[mi-stage: Focus]\n[strategy: Open Question]";
         let analysis = analyze_think_block(think);
-        assert_eq!(analysis.mi_stage, Some("engage".to_string()));
-        assert!(analysis.themes.contains(&"anxious".to_string()));
+        assert_eq!(analysis.mi_stage, Some("focus".to_string()));
+        assert_eq!(analysis.strategy_used, Some("open question".to_string()));
     }
 
     #[test]
-    fn test_analyze_think_block_empty() {
+    fn test_no_tags_returns_none() {
+        let think = "Just some reasoning without any structured tags.";
+        let analysis = analyze_think_block(think);
+        assert_eq!(analysis.mi_stage, None);
+        assert_eq!(analysis.strategy_used, None);
+        assert_eq!(analysis.talk_type, None);
+        assert!(analysis.themes.is_empty());
+    }
+
+    #[test]
+    fn test_empty_input() {
         let analysis = analyze_think_block("");
         assert_eq!(analysis.mi_stage, None);
         assert_eq!(analysis.strategy_used, None);
@@ -215,7 +151,15 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_mi_stage() {
+    fn test_none_values_treated_as_absent() {
+        let think = "[MI-STAGE: none]\n[THEMES: none]";
+        let analysis = analyze_think_block(think);
+        assert_eq!(analysis.mi_stage, None);
+        assert!(analysis.themes.is_empty());
+    }
+
+    #[test]
+    fn test_extract_mi_stage_from_case_notes() {
         assert_eq!(extract_mi_stage("MI Stage: engage"), Some("engage".to_string()));
         assert_eq!(extract_mi_stage("**MI Stage:** evoke"), Some("evoke".to_string()));
         assert_eq!(extract_mi_stage("No stage here"), None);
@@ -229,11 +173,5 @@ mod tests {
             merge_themes(&prev, &new),
             vec!["drinking", "breakup", "sleep"]
         );
-    }
-
-    #[test]
-    fn test_strip_echoed_exchanges() {
-        let notes = "MI Stage: engage\n\nLATEST EXCHANGE:\nPerson: hello";
-        assert_eq!(strip_echoed_exchanges(notes), "MI Stage: engage");
     }
 }

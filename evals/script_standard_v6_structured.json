@@ -1,0 +1,58 @@
+{
+  "coach_variant": "v6-strategic",
+  "description": "Exercises engage→focus→evoke progression with ambivalence and change talk",
+  "script_id": "standard-5turn",
+  "total_duration_ms": 9018,
+  "turns": [
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 2419,
+      "expected_mode": null,
+      "input": "I don't know, I've just been feeling really down lately.",
+      "response": "That's a heavy feeling to just sit with. You're not sure what's driving it, and that's probably part of what's making it feel worse. When you say you've been feeling down lately, what does that look like for you — is it more a general sense of emptiness, or is there something specific that's been weighing on you?",
+      "script_notes": "Vague opening — tests engagement with minimal input",
+      "think_content": "\"I don't know\" and \"feeling really down\" — they're not sure what's happening or how to describe it. I should reflect the feeling without trying to diagnose or label it. Stay with their experience.",
+      "turn_number": 1
+    },
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 1584,
+      "expected_mode": null,
+      "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+      "response": "So the job loss hit three months ago and something shifted — the drinking ramped up along with it. Sometimes when we lose something big, the drinking becomes a way to deal with whatever comes after. What's the drinking been doing for you? Like, is it helping you cope with something, or is it more just filling time?",
+      "script_notes": "Disclosure with context — tests specificity and reflection",
+      "think_content": "",
+      "turn_number": 2
+    },
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 1788,
+      "expected_mode": null,
+      "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+      "response": "So the drinking is serving a real function — it's keeping you in rest. Part of you knows it's not healthy, but the alternatives aren't working the way they should. You're stuck in this loop where the thing that's hurting you most is also the thing keeping you from hurting yourself more. What would change for you if you could get your sleep back without the drinking?",
+      "script_notes": "Ambivalence — tests double-sided reflection, exploring function",
+      "think_content": "",
+      "turn_number": 3
+    },
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 1574,
+      "expected_mode": null,
+      "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+      "response": "Your sister sees this too — she's been thinking about what it would mean for you to get support. And you're caught between wanting to try that and feeling like it might not fit who you are. What would it mean for you to go to a meeting? Like, what would that give you?",
+      "script_notes": "External pressure + resistance — tests autonomy support",
+      "think_content": "",
+      "turn_number": 4
+    },
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 1651,
+      "expected_mode": null,
+      "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+      "response": "Two days. You tried something — you cut back — and it didn't last because the anxiety that the drinking was managing came rushing back. That's the thing about trying to reduce drinking without a plan for the anxiety underneath it. You tried and you learned something important about what happens when you take the drinking away.",
+      "script_notes": "Change talk (taking steps) — tests affirmation of effort",
+      "think_content": "",
+      "turn_number": 5
+    }
+  ]
+}

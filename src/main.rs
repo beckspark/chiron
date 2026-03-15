@@ -17,10 +17,26 @@ use rig::completion::Chat;
 use tracing_subscriber::EnvFilter;
 
 use crate::agents::peer::build_peer_coach;
-use crate::catalog::PromptCatalog;
+use crate::catalog::{ModeCatalog, PromptCatalog};
 use crate::orchestrator::Orchestrator;
 use crate::provider::config::GenerationConfig;
 use crate::provider::LlamaCppProvider;
+
+/// A scripted test conversation loaded from TOML.
+#[derive(serde::Deserialize)]
+struct TestScript {
+    id: String,
+    description: String,
+    turns: Vec<TestTurn>,
+}
+
+/// A single turn in a test script.
+#[derive(serde::Deserialize)]
+struct TestTurn {
+    input: String,
+    notes: String,
+    expected_mode: Option<String>,
+}
 
 #[derive(Parser)]
 #[command(name = "chiron")]
@@ -42,6 +58,10 @@ struct Args {
     #[arg(long)]
     bench: Option<String>,
 
+    /// Run a scripted test conversation from a TOML file and output JSON results.
+    #[arg(long)]
+    script: Option<PathBuf>,
+
     /// Path to SQLite database file for chat history + case notes
     #[arg(long, default_value = "chiron.db")]
     db_path: String,
@@ -49,6 +69,10 @@ struct Args {
     /// Path to coach prompt variants TOML
     #[arg(long, default_value = "prompts/coach.toml")]
     coach_variants: PathBuf,
+
+    /// Path to conversation modes TOML
+    #[arg(long, default_value = "prompts/modes.toml")]
+    modes: PathBuf,
 
     /// Coach variant ID to use (default: first variant in catalog)
     #[arg(long)]
@@ -92,6 +116,12 @@ async fn main() -> Result<()> {
     };
 
     tracing::info!(coach = &coach_variant.id, "Selected prompt variant");
+
+    // Load mode catalog (optional — degrades gracefully if missing)
+    let mode_catalog = ModeCatalog::load(&args.modes).ok();
+    if mode_catalog.is_some() {
+        tracing::info!("Loaded conversation modes from {}", args.modes.display());
+    }
 
     // Resolve model path (symlinks)
     let model_path = args.model.canonicalize().with_context(|| {
@@ -138,6 +168,79 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    // --- Script mode: run test conversation, output JSON ---
+    if let Some(script_path) = &args.script {
+        let script_content = std::fs::read_to_string(script_path)
+            .with_context(|| format!("Failed to read script: {}", script_path.display()))?;
+        let script: TestScript = toml::from_str(&script_content)
+            .with_context(|| format!("Failed to parse script: {}", script_path.display()))?;
+
+        let db_path = format!(":memory:"); // In-memory DB for scripted runs
+        let chat_conn = memory::open_memory(&db_path).await?;
+        let completion_model = crate::provider::completion_model(&provider, config);
+
+        let session_id = format!("script_{}", script.id);
+        let mut orchestrator = Orchestrator::new(
+            completion_model,
+            coach_variant.clone(),
+            coach_catalog.think_instructions.clone(),
+            mode_catalog,
+            session_id,
+            chat_conn,
+            true, // always show thinking in script mode
+        );
+        orchestrator.set_output_to_stderr(true);
+
+        eprintln!("=== Script Mode: {} ===", script.id);
+        eprintln!("Description: {}", script.description);
+        eprintln!("Coach: {}", coach_variant.id);
+        eprintln!("Turns: {}", script.turns.len());
+        eprintln!("---");
+
+        let run_start = Instant::now();
+        let mut turn_results = Vec::new();
+
+        for (i, turn) in script.turns.iter().enumerate() {
+            eprintln!("\n--- Turn {} ---", i + 1);
+            eprintln!("Input: {}", turn.input);
+            if let Some(ref mode) = turn.expected_mode {
+                eprintln!("Expected mode: {mode}");
+            }
+            eprintln!("Notes: {}", turn.notes);
+
+            let result = orchestrator
+                .run_turn_captured(&turn.input)
+                .await
+                .with_context(|| format!("Turn {} failed", i + 1))?;
+
+            eprintln!("Case notes: {}", result.case_notes.as_deref().unwrap_or("none"));
+
+            turn_results.push(serde_json::json!({
+                "turn_number": result.turn_number,
+                "input": result.input,
+                "response": result.response,
+                "think_content": result.think_content,
+                "case_notes": result.case_notes,
+                "expected_mode": turn.expected_mode,
+                "script_notes": turn.notes,
+                "duration_ms": result.duration_ms,
+            }));
+        }
+
+        let output = serde_json::json!({
+            "script_id": script.id,
+            "description": script.description,
+            "coach_variant": coach_variant.id,
+            "total_duration_ms": run_start.elapsed().as_millis() as u64,
+            "turns": turn_results,
+        });
+
+        // Write JSON to stdout (eprintln used for progress above)
+        println!("{}", serde_json::to_string_pretty(&output)?);
+
+        return Ok(());
+    }
+
     // --- Interactive mode ---
 
     let chat_conn = memory::open_memory(&args.db_path).await?;
@@ -156,6 +259,8 @@ async fn main() -> Result<()> {
     let mut orchestrator = Orchestrator::new(
         completion_model,
         coach_variant.clone(),
+        coach_catalog.think_instructions.clone(),
+        mode_catalog,
         session_id,
         chat_conn,
         args.show_thinking,

@@ -1,0 +1,58 @@
+{
+  "coach_variant": "v5-finetuned",
+  "description": "Exercises engage→focus→evoke progression with ambivalence and change talk",
+  "script_id": "standard-5turn",
+  "total_duration_ms": 8784,
+  "turns": [
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 1895,
+      "expected_mode": null,
+      "input": "I don't know, I've just been feeling really down lately.",
+      "response": "That's a heavy feeling to just carry around without knowing what's causing it. Sometimes it's like the weight comes from all directions at once. When you say you've been feeling down lately, is there anything that stands out as maybe being part of it?",
+      "script_notes": "Vague opening — tests engagement with minimal input",
+      "think_content": "They're expressing feeling down but can't pinpoint what's causing it. They seem uncertain — \"I don't know.\" I should reflect the feeling without trying to diagnose or problem-solve. Keep it gentle and open.",
+      "turn_number": 1
+    },
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 2059,
+      "expected_mode": null,
+      "input": "Yeah, I've been drinking a lot more since I lost my job three months ago.",
+      "response": "So you lost your job three months ago, and something about that — maybe the loss itself, maybe the uncertainty, maybe something else — pulled you into the drinking. What did that job mean to you?",
+      "script_notes": "Disclosure with context — tests specificity and reflection",
+      "think_content": "The drinking is connected to a significant life event — job loss — three months ago. That's a clear timeline and a clear connection. The drinking is a coping response to a loss. I should reflect the connection between the job loss and the drinking without judging the drinking. I should also explore what the job loss represented to them.",
+      "turn_number": 2
+    },
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 1073,
+      "expected_mode": null,
+      "input": "I know it's bad for me but it's the only thing that helps me sleep.",
+      "response": "So on one hand you know it's not good for you, but on the other hand, it's keeping you from tossing and turning all night. It's giving you something that nothing else has, at least right now.",
+      "script_notes": "Ambivalence — tests double-sided reflection, exploring function",
+      "think_content": "",
+      "turn_number": 3
+    },
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 2245,
+      "expected_mode": null,
+      "input": "My sister said the same thing. She wants me to go to meetings but I'm not sure that's for me.",
+      "response": "Your sister's bringing up something that might work, and you're not sure if it's the right fit. That's okay — it's your decision. If there was something that would feel good to you, something that felt right for you, what would that look like?",
+      "script_notes": "External pressure + resistance — tests autonomy support",
+      "think_content": "Sister suggesting meetings — they're not sure it's for them. This could mean they see value in it, or they're skeptical because they've been told too many things before. I shouldn't push the sister's suggestion. I should explore their own perspective on what support would look like.",
+      "turn_number": 4
+    },
+    {
+      "case_notes": "MI Stage: engage\nRunning Themes: none",
+      "duration_ms": 1509,
+      "expected_mode": null,
+      "input": "I did try cutting back last week. Made it two days before the anxiety got too bad.",
+      "response": "Two days, and then the anxiety started building again. That's not a total failure — it's information. It's telling you that cutting back completely right now feels too fast for your nervous system to handle. What would it look like to cut back a little bit, not all the way, but enough to make a difference?",
+      "script_notes": "Change talk (taking steps) — tests affirmation of effort",
+      "think_content": "",
+      "turn_number": 5
+    }
+  ]
+}
