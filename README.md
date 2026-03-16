@@ -2,7 +2,7 @@
 
 A Motivational Interviewing (MI) peer support chatbot. Chiron runs a fine-tuned language model locally via llama.cpp and uses [Rig](https://github.com/0xPlaygrounds/rig) as its agent framework to orchestrate multi-turn conversations that help people work through ambivalence and behavior change.
 
-The model ([Plotinus](https://github.com/beckspark/plotinus)) is a Qwen3.5-4B fine-tuned on MI techniques: reflective listening, open questions, affirmations, and the stages-of-change model. Chiron wraps it with a supervision layer that parses the model's internal reasoning, tracks clinical state across turns, and adapts its coaching strategy in real time.
+The model *Plotinus* is a Qwen3.5-4B fine-tuned on MI techniques: reflective listening, open questions, affirmations, and the stages-of-change model. Chiron wraps it with a supervision layer that parses the model's internal reasoning, tracks stage of change state across turns, and adapts its coaching strategy in real time.
 
 ## Architecture
 
@@ -53,7 +53,7 @@ The model produces structured metadata tags inside its `<think>` block before ev
 3. Next turn's system prompt includes those notes + stage-appropriate technique guidance
 4. Model adapts its strategy based on the accumulated clinical picture
 
-This lets a small local model (4B parameters, 2.5GB quantized) maintain coherent multi-turn therapeutic direction without external orchestration.
+This lets a small local model (4B parameters, 2.5GB quantized) maintain coherent multi-turn coaching direction without external orchestration.
 
 ### Routing and mode detection
 
