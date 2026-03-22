@@ -1,6 +1,6 @@
 # Chiron
 
-Chiron is an open-source [Motivational Interviewing](https://en.wikipedia.org/wiki/Motivational_interviewing) peer support chatbot that runs entirely on your machine. No cloud API, no external inference service. The model compiles directly into the binary via [llama.cpp](https://llama-cpp.com/), so your conversations never leave your device.
+Chiron is an open-source [Motivational Interviewing](https://en.wikipedia.org/wiki/Motivational_interviewing) peer support chatbot that runs entirely on your machine. No cloud API, no external inference service. All conversations are completely private, and data stays only on your machine, forever. The model compiles directly into the binary via [llama.cpp](https://llama-cpp.com/), so your conversations never leave your device.
 
 The model *plotinus* is a [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B-Base) fine-tuned on MI techniques: reflective listening, open questions, affirmations, and the stages-of-change model. Chiron wraps it with a supervision layer that parses the model's internal reasoning, tracks stage of change state across turns, and adapts its coaching strategy in real time. It uses [Rig](https://github.com/0xPlaygrounds/rig) as its agent framework to orchestrate multi-turn conversations.
 
