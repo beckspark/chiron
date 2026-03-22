@@ -12,12 +12,19 @@ pub fn build_peer_coach_preamble(
     think_instructions: Option<&str>,
     case_notes: Option<&str>,
     mode_catalog: Option<&ModeCatalog>,
+    rag_context: Option<&str>,
 ) -> String {
     let mut preamble = base.to_string();
 
     if let Some(instructions) = think_instructions {
         preamble.push_str("\n\n");
         preamble.push_str(instructions);
+    }
+
+    // RAG context injected between think instructions and case notes
+    if let Some(context) = rag_context.filter(|c| !c.is_empty()) {
+        preamble.push_str("\n\n");
+        preamble.push_str(context);
     }
 
     match case_notes {
@@ -109,20 +116,20 @@ mod tests {
 
     #[test]
     fn test_preamble_base_only() {
-        let preamble = build_peer_coach_preamble(TEST_BASE, None, None, None);
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, None, None, None);
         assert_eq!(preamble, TEST_BASE);
     }
 
     #[test]
     fn test_preamble_with_empty_case_notes() {
-        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(""), None);
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(""), None, None);
         assert_eq!(preamble, TEST_BASE);
     }
 
     #[test]
     fn test_preamble_with_case_notes() {
         let notes = "MI Stage: engage\nKey Themes: anxiety about job loss";
-        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None);
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None, None);
 
         assert!(preamble.starts_with(TEST_BASE));
         assert!(preamble.contains("## Session Context"));
@@ -133,7 +140,7 @@ mod tests {
     #[test]
     fn test_preamble_with_stage_guidance() {
         let notes = "MI Stage: evoke\nRunning Themes: drinking";
-        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None);
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None, None);
 
         assert!(preamble.contains("## Technique Guidance"));
         assert!(preamble.contains("DARN questions"));
@@ -142,9 +149,29 @@ mod tests {
     #[test]
     fn test_preamble_engage_guidance() {
         let notes = "MI Stage: engage\nRunning Themes: anxiety";
-        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None);
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None, None);
 
         assert!(preamble.contains("## Technique Guidance"));
         assert!(preamble.contains("rapport"));
+    }
+
+    #[test]
+    fn test_preamble_with_rag_context() {
+        let rag = "## What You Know About This Person\n- Goal: reduce drinking to weekends";
+        let notes = "MI Stage: evoke\nRunning Themes: drinking";
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes), None, Some(rag));
+
+        assert!(preamble.contains("## What You Know About This Person"));
+        assert!(preamble.contains("reduce drinking"));
+        // RAG context should appear before case notes
+        let rag_pos = preamble.find("What You Know").unwrap();
+        let notes_pos = preamble.find("Session Context").unwrap();
+        assert!(rag_pos < notes_pos, "RAG context should precede case notes");
+    }
+
+    #[test]
+    fn test_preamble_empty_rag_context_ignored() {
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, None, None, Some(""));
+        assert_eq!(preamble, TEST_BASE);
     }
 }

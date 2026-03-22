@@ -1,4 +1,7 @@
 pub mod case_notes;
+pub mod embeddings;
+pub mod retrieval;
+pub mod vectors;
 
 use anyhow::{Context, Result};
 use tokio_rusqlite::Connection;

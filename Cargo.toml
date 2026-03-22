@@ -8,7 +8,15 @@ edition = "2024"
 llama-cpp-2 = "0.1.139"
 
 # Agent framework
-rig-core = "0.30"
+rig-core = "0.33"
+
+# RAG: vector store + embeddings
+rig-lancedb = "0.4"
+rig-fastembed = "0.3"
+lancedb = { version = "0.23", default-features = false }
+arrow-array = "56"
+arrow-schema = "56"
+uuid = { version = "1", features = ["v4"] }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
@@ -43,6 +51,9 @@ cuda = ["llama-cpp-2/cuda"]
 metal = ["llama-cpp-2/metal"]
 rocm = ["llama-cpp-2/rocm"]
 vulkan = ["llama-cpp-2/vulkan"]
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 opt-level = 3

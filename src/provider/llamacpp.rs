@@ -207,6 +207,7 @@ impl CompletionModel for LlamaCppCompletionModel {
                 cached_input_tokens: 0,
             },
             raw_response: result,
+            message_id: None,
         })
     }
 
@@ -291,6 +292,9 @@ fn format_request(
                     .collect::<Vec<_>>()
                     .join("");
                 messages.push(("assistant".to_string(), text));
+            }
+            Message::System { content } => {
+                messages.push(("system".to_string(), content.clone()));
             }
         }
     }

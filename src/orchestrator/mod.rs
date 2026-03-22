@@ -12,14 +12,16 @@ use crate::agents::peer::build_peer_coach_preamble;
 use crate::catalog::{ModeCatalog, PromptVariant};
 use crate::memory;
 use crate::memory::case_notes;
+use crate::memory::retrieval;
 use crate::provider::LlamaCppCompletionModel;
 use crate::router;
 use crate::supervision::{
     analyze_think_block, extract_mi_stage, extract_themes, merge_themes, ThinkAnalysis,
 };
+use rig_fastembed::EmbeddingModel;
 
 
-/// Structured result from a single conversation turn.
+/// Structured result from a single conversation turn (public, for eval/script mode).
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TurnResult {
     pub turn_number: i32,
@@ -29,6 +31,13 @@ pub struct TurnResult {
     pub case_notes: Option<String>,
     pub preamble_injected: String,
     pub duration_ms: u64,
+}
+
+/// Internal output from the shared turn pipeline.
+struct TurnOutput {
+    response: String,
+    think_content: Option<String>,
+    preamble: String,
 }
 
 /// Single-pass pipeline orchestrator.
@@ -54,6 +63,14 @@ pub struct Orchestrator {
     /// When true, streaming output goes to stderr instead of stdout.
     /// Used in script mode to keep stdout clean for JSON output.
     output_to_stderr: bool,
+    /// Maximum number of messages (user+assistant pairs) in the sliding window.
+    max_history_messages: usize,
+    /// LanceDB vector store connection for RAG retrieval.
+    vector_conn: Option<lancedb::Connection>,
+    /// Embedding model for RAG queries.
+    embedding_model: Option<EmbeddingModel>,
+    /// Top-k results per RAG collection.
+    rag_top_k: usize,
 }
 
 impl Orchestrator {
@@ -65,6 +82,10 @@ impl Orchestrator {
         session_id: String,
         chat_conn: Connection,
         show_thinking: bool,
+        max_history_turns: usize,
+        vector_conn: Option<lancedb::Connection>,
+        embedding_model: Option<EmbeddingModel>,
+        rag_top_k: usize,
     ) -> Self {
         Self {
             peer_coach_model,
@@ -77,6 +98,10 @@ impl Orchestrator {
             turn_number: 0,
             show_thinking,
             output_to_stderr: false,
+            max_history_messages: max_history_turns * 2,
+            vector_conn,
+            embedding_model,
+            rag_top_k,
         }
     }
 
@@ -97,52 +122,20 @@ impl Orchestrator {
         let turn_start = Instant::now();
         self.turn_number += 1;
 
-        // Step 1: Crisis check
+        // Crisis short-circuit
         if router::is_crisis(input) {
             let response = router::crisis_response();
-            if self.output_to_stderr {
-                eprintln!("\nChiron: {response}");
-            } else {
-                println!("\nChiron: {response}");
-            }
+            self.print_response(response);
             self.save_and_record(input, response).await?;
             return Ok(());
         }
 
-        // Step 2: Load latest case notes
-        let existing_notes = case_notes::get_latest_case_note(&self.chat_conn).await?;
-
-        // Step 3: Build peer coach with preamble + case notes + mode guidance
-        let preamble = build_peer_coach_preamble(
-            &self.coach_variant.preamble,
-            self.think_instructions.as_deref(),
-            existing_notes.as_deref(),
-            self.mode_catalog.as_ref(),
-        );
-
-        let peer_coach = rig::agent::AgentBuilder::new(self.peer_coach_model.clone())
-            .preamble(&preamble)
-            .temperature(self.coach_variant.temperature)
-            .max_tokens(self.coach_variant.max_tokens as u64)
-            .build();
-
-        // Step 4: Stream response (returns visible text + think block content)
-        let (response, think_content) = self.stream_peer_coach(&peer_coach, input).await?;
-
-        // Step 5: Analyze think block for MI stage + themes + strategy
-        // Uses think block content when available (rich model reasoning),
-        // falls back to exchange text for keyword heuristics.
-        self.update_case_notes(input, &response, think_content.as_deref(), existing_notes.as_deref())
-            .await?;
-
-        // Step 6: Save turn to DB + update history
-        self.save_and_record(input, &response).await?;
+        let _output = self.run_turn_inner(input).await?;
 
         tracing::info!(
             total_ms = turn_start.elapsed().as_millis() as u64,
             "Turn complete"
         );
-
         Ok(())
     }
 
@@ -155,14 +148,10 @@ impl Orchestrator {
         let turn_start = Instant::now();
         self.turn_number += 1;
 
-        // Crisis check
+        // Crisis short-circuit
         if router::is_crisis(input) {
             let response = router::crisis_response();
-            if self.output_to_stderr {
-                eprintln!("\nChiron: {response}");
-            } else {
-                println!("\nChiron: {response}");
-            }
+            self.print_response(response);
             self.save_and_record(input, response).await?;
             return Ok(TurnResult {
                 turn_number: self.turn_number,
@@ -175,13 +164,58 @@ impl Orchestrator {
             });
         }
 
+        let output = self.run_turn_inner(input).await?;
+
+        // Fetch the case notes we just wrote
+        let updated_notes = case_notes::get_latest_case_note(&self.chat_conn).await?;
+
+        Ok(TurnResult {
+            turn_number: self.turn_number,
+            input: input.to_string(),
+            response: output.response,
+            think_content: output.think_content,
+            case_notes: updated_notes,
+            preamble_injected: output.preamble,
+            duration_ms: turn_start.elapsed().as_millis() as u64,
+        })
+    }
+
+    /// Shared turn pipeline: RAG retrieve → load notes → build preamble → stream → update notes → save.
+    async fn run_turn_inner(&mut self, input: &str) -> Result<TurnOutput> {
+        // Step 1: Load latest case notes
         let existing_notes = case_notes::get_latest_case_note(&self.chat_conn).await?;
 
+        // Step 1.5: RAG retrieval (if vector store is available)
+        let rag_context = if let (Some(vconn), Some(model)) =
+            (&self.vector_conn, &self.embedding_model)
+        {
+            let mi_stage = existing_notes
+                .as_deref()
+                .and_then(extract_mi_stage);
+            let ctx = retrieval::retrieve_context(
+                vconn,
+                model,
+                input,
+                mi_stage.as_deref(),
+                self.rag_top_k,
+            )
+            .await;
+            let formatted = retrieval::format_rag_context(&ctx);
+            if formatted.is_some() {
+                tracing::info!("RAG context retrieved for turn");
+            }
+            formatted
+        } else {
+            None
+        };
+
+        // Step 2: Build peer coach with preamble + RAG context + case notes + mode guidance
         let preamble = build_peer_coach_preamble(
             &self.coach_variant.preamble,
             self.think_instructions.as_deref(),
             existing_notes.as_deref(),
             self.mode_catalog.as_ref(),
+            rag_context.as_deref(),
         );
 
         let peer_coach = rig::agent::AgentBuilder::new(self.peer_coach_model.clone())
@@ -190,25 +224,30 @@ impl Orchestrator {
             .max_tokens(self.coach_variant.max_tokens as u64)
             .build();
 
+        // Step 3: Stream response (returns visible text + think block content)
         let (response, think_content) = self.stream_peer_coach(&peer_coach, input).await?;
 
+        // Step 4: Analyze think block and update case notes
         self.update_case_notes(input, &response, think_content.as_deref(), existing_notes.as_deref())
             .await?;
 
+        // Step 5: Save turn to DB + update history
         self.save_and_record(input, &response).await?;
 
-        // Fetch the case notes we just wrote
-        let updated_notes = case_notes::get_latest_case_note(&self.chat_conn).await?;
-
-        Ok(TurnResult {
-            turn_number: self.turn_number,
-            input: input.to_string(),
-            response: response.clone(),
+        Ok(TurnOutput {
+            response,
             think_content,
-            case_notes: updated_notes,
-            preamble_injected: preamble,
-            duration_ms: turn_start.elapsed().as_millis() as u64,
+            preamble,
         })
+    }
+
+    /// Prints a response to the appropriate output stream.
+    fn print_response(&self, text: &str) {
+        if self.output_to_stderr {
+            eprintln!("\nChiron: {text}");
+        } else {
+            println!("\nChiron: {text}");
+        }
     }
 
     /// Streams the peer coach response, printing visible tokens to the display output.
@@ -402,14 +441,11 @@ impl Orchestrator {
         self.chat_history.push(Message::assistant(response));
 
         // Sliding window: keep last N turns (pairs of user+assistant messages).
-        // With 2048 context, ~580 tokens for system prompt + case notes,
-        // ~512 for generation, leaves ~950 for history. 4 turns is safe.
-        const MAX_HISTORY_MESSAGES: usize = 8; // 4 turns = 8 messages
-        if self.chat_history.len() > MAX_HISTORY_MESSAGES {
-            let trim_count = self.chat_history.len() - MAX_HISTORY_MESSAGES;
+        if self.chat_history.len() > self.max_history_messages {
+            let trim_count = self.chat_history.len() - self.max_history_messages;
             self.chat_history.drain(..trim_count);
             tracing::debug!(
-                kept = MAX_HISTORY_MESSAGES,
+                kept = self.max_history_messages,
                 trimmed = trim_count,
                 "Sliding window trimmed chat history"
             );

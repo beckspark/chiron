@@ -89,6 +89,22 @@ struct Args {
     /// Enable verbose logging (tracing info/debug output)
     #[arg(long, short)]
     verbose: bool,
+
+    /// Path to LanceDB vector store directory
+    #[arg(long, default_value = "chiron_vectors")]
+    lance_db_path: String,
+
+    /// Number of conversation turns to keep in the sliding window
+    #[arg(long, default_value = "4")]
+    history_turns: usize,
+
+    /// Total context window size in tokens (for RAG budget calculation)
+    #[arg(long, default_value = "4096")]
+    context_size: usize,
+
+    /// Default top-k results per RAG collection
+    #[arg(long, default_value = "3")]
+    rag_top_k: usize,
 }
 
 #[tokio::main]
@@ -189,6 +205,10 @@ async fn main() -> Result<()> {
             session_id,
             chat_conn,
             true, // always show thinking in script mode
+            args.history_turns,
+            None, // no vector store in script mode (for now)
+            None, // no embedding model in script mode (for now)
+            args.rag_top_k,
         );
         orchestrator.set_output_to_stderr(true);
 
@@ -244,6 +264,11 @@ async fn main() -> Result<()> {
 
     // --- Interactive mode ---
 
+    // Initialize vector store + embedding model
+    let vector_conn = memory::vectors::open_vector_db(&args.lance_db_path).await?;
+    memory::vectors::ensure_tables(&vector_conn).await?;
+    let embedding_model = memory::embeddings::init_embedding_model();
+
     let chat_conn = memory::open_memory(&args.db_path).await?;
 
     let completion_model = crate::provider::completion_model(&provider, config);
@@ -265,6 +290,10 @@ async fn main() -> Result<()> {
         session_id,
         chat_conn,
         args.show_thinking,
+        args.history_turns,
+        Some(vector_conn),
+        Some(embedding_model),
+        args.rag_top_k,
     );
 
     println!("Chiron MI Peer Support (Plotinus V19 + llama.cpp)");
