@@ -103,6 +103,22 @@ cp .cargo/config.toml.cuda-example .cargo/config.toml
 # Edit GCC version to match your CUDA installation
 ```
 
+## Building
+
+`chiron` is designed to build its own embedded inference system via `llama-cpp-2`. No `ollama`, `vllm`, or seperate HTTP
+service required. However, that means the build process looks different per local GPU/CPU build:
+
+### MacOS -- `metal`
+- An m-series mac is required.
+
+```bash
+brew install cmake
+brew install rust
+
+cargo build --release --features metal
+
+```
+
 ## Usage
 
 ```bash
