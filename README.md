@@ -1,8 +1,10 @@
 # Chiron
 
-A Motivational Interviewing (MI) peer support chatbot. Chiron runs a fine-tuned language model locally via llama.cpp and uses [Rig](https://github.com/0xPlaygrounds/rig) as its agent framework to orchestrate multi-turn conversations that help people work through ambivalence and behavior change.
+Chiron is an open-source [Motivational Interviewing](https://en.wikipedia.org/wiki/Motivational_interviewing) peer support chatbot that runs entirely on your machine. No cloud API, no external inference service. The model compiles directly into the binary via [llama.cpp](https://llama-cpp.com/), so your conversations never leave your device.
 
-The model *Plotinus* is a Qwen3.5-4B fine-tuned on MI techniques: reflective listening, open questions, affirmations, and the stages-of-change model. Chiron wraps it with a supervision layer that parses the model's internal reasoning, tracks stage of change state across turns, and adapts its coaching strategy in real time.
+The model *plotinus* is a [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B-Base) fine-tuned on MI techniques: reflective listening, open questions, affirmations, and the stages-of-change model. Chiron wraps it with a supervision layer that parses the model's internal reasoning, tracks stage of change state across turns, and adapts its coaching strategy in real time. It uses [Rig](https://github.com/0xPlaygrounds/rig) as its agent framework to orchestrate multi-turn conversations.
+
+This project is experimental. The *plotinus* model is not publicly available yet. It needs more evaluation before it's appropriate for general use. That said, I'm actively looking to collaborate, especially with practitioners or students in the MI and coaching space. If you'd like to test it or contribute, reach out: <stephenpbeck@gmail.com>! :)
 
 ## Architecture
 
@@ -44,7 +46,7 @@ User Input
                      Case notes preserve accumulated context beyond window
 ```
 
-### Key idea: the model supervises itself
+### Model / Coach Supervision
 
 The model produces structured metadata tags inside its `<think>` block before every response. Chiron parses these tags to build case notes, which feed back into the system prompt on the next turn. This creates a feedback loop:
 
@@ -75,7 +77,7 @@ For non-crisis turns, the `peer` agent detects conversation modes (resistance, c
 
 ## Building
 
-Default is CPU-only so `cargo build` works everywhere:
+Default is CPU-only so `cargo build` works (slowly) everywhere. For best results, build with the proper feature flag for your machine's GPU:
 
 ```bash
 # CPU-only (default)
@@ -85,6 +87,8 @@ cargo build --release
 cargo build --release --features cuda
 
 # Apple Metal
+brew install cmake
+brew install rust
 cargo build --release --features metal
 
 # AMD ROCm
@@ -92,31 +96,6 @@ cargo build --release --features rocm
 
 # Vulkan
 cargo build --release --features vulkan
-```
-
-### CUDA-specific setup
-
-CUDA builds may need GCC overrides if your CUDA toolkit doesn't support the system default GCC. Copy the example config:
-
-```bash
-cp .cargo/config.toml.cuda-example .cargo/config.toml
-# Edit GCC version to match your CUDA installation
-```
-
-## Building
-
-`chiron` is designed to build its own embedded inference system via `llama-cpp-2`. No `ollama`, `vllm`, or seperate HTTP
-service required. However, that means the build process looks different per local GPU/CPU build:
-
-### MacOS -- `metal`
-- An m-series mac is required.
-
-```bash
-brew install cmake
-brew install rust
-
-cargo build --release --features metal
-
 ```
 
 ## Usage
