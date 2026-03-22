@@ -101,6 +101,7 @@ async fn main() -> Result<()> {
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level)),
         )
         .init();
+    llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default());
 
     // Load prompt catalog
     let coach_catalog = PromptCatalog::load(&args.coach_variants)
@@ -266,7 +267,7 @@ async fn main() -> Result<()> {
         args.show_thinking,
     );
 
-    println!("Chiron MI Peer Support (Plotinus V18 + llama.cpp)");
+    println!("Chiron MI Peer Support (Plotinus V19 + llama.cpp)");
     println!("Coach: {}", coach_variant.id);
     println!("Type your message, or 'quit' to exit. 'reset' clears conversation.");
     println!("---");
