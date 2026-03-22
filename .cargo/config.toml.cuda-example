@@ -1,0 +1,10 @@
+# CUDA build overrides — copy to .cargo/config.toml if building with --features cuda
+#
+# Required when your CUDA toolkit's nvcc doesn't support the system default GCC.
+# Adjust the GCC version to match what your CUDA version supports.
+# See: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/#host-compiler-support-policy
+
+[env]
+NVCC_PREPEND_FLAGS = "-ccbin /usr/bin/g++-13"
+CC = "gcc-13"
+CXX = "g++-13"

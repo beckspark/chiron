@@ -34,6 +34,17 @@ impl LlamaCppProvider {
     pub fn new(model_path: &Path, n_gpu_layers: u32) -> Result<Self> {
         let backend = LlamaBackend::init().context("Failed to init llama backend")?;
 
+        #[cfg(feature = "cuda")]
+        tracing::info!("GPU backend: CUDA");
+        #[cfg(feature = "metal")]
+        tracing::info!("GPU backend: Metal");
+        #[cfg(feature = "rocm")]
+        tracing::info!("GPU backend: ROCm");
+        #[cfg(feature = "vulkan")]
+        tracing::info!("GPU backend: Vulkan");
+        #[cfg(not(any(feature = "cuda", feature = "metal", feature = "rocm", feature = "vulkan")))]
+        tracing::info!("GPU backend: none (CPU-only)");
+
         let model_params = LlamaModelParams::default().with_n_gpu_layers(n_gpu_layers);
         let model = LlamaModel::load_from_file(&backend, model_path, &model_params)
             .map_err(|e| anyhow::anyhow!("Failed to load model: {e}"))?;

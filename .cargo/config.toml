@@ -1,5 +1,0 @@
-# CUDA 12.5 doesn't support GCC 15's C++ headers - use GCC 13 as host compiler
-[env]
-NVCC_PREPEND_FLAGS = "-ccbin /usr/bin/g++-13"
-CC = "gcc-13"
-CXX = "g++-13"

@@ -25,7 +25,7 @@ User Input
     |                   - Mode modifier (resistance/change-talk/ambivalence/crisis)
     |
     v
-[Rig Agent] ── Streams completion via llama.cpp (CUDA, Q4_K_M GGUF)
+[Rig Agent] ── Streams completion via llama.cpp (Q4_K_M GGUF)
     |           Think blocks buffered; visible text streamed to terminal
     |
     v
@@ -67,26 +67,56 @@ For non-crisis turns, the `peer` agent detects conversation modes (resistance, c
 |--------|---------|
 | `orchestrator` | Turn pipeline: crisis check -> case notes -> inference -> parse -> update |
 | `agents/peer` | Preamble builder with stage guidance and mode detection |
-| `provider/llamacpp` | Rig `CompletionModel` impl wrapping llama-cpp-2 (CUDA) |
+| `provider/llamacpp` | Rig `CompletionModel` impl wrapping llama-cpp-2 |
 | `supervision/think_parser` | Parses `[MI-STAGE]`, `[STRATEGY]`, `[TALK-TYPE]`, `[THEMES]` from think blocks |
 | `memory/case_notes` | SQLite persistence for clinical state across turns |
 | `router` | Pre-inference crisis keyword detection + safety responses |
 | `catalog` | TOML-driven prompt variants and conversation mode definitions |
 
+## Building
+
+Default is CPU-only so `cargo build` works everywhere:
+
+```bash
+# CPU-only (default)
+cargo build --release
+
+# NVIDIA CUDA
+cargo build --release --features cuda
+
+# Apple Metal
+cargo build --release --features metal
+
+# AMD ROCm
+cargo build --release --features rocm
+
+# Vulkan
+cargo build --release --features vulkan
+```
+
+### CUDA-specific setup
+
+CUDA builds may need GCC overrides if your CUDA toolkit doesn't support the system default GCC. Copy the example config:
+
+```bash
+cp .cargo/config.toml.cuda-example .cargo/config.toml
+# Edit GCC version to match your CUDA installation
+```
+
 ## Usage
 
 ```bash
 # Interactive conversation
-cargo run --release
+cargo run --release --features cuda
 
 # With a specific coach variant
-cargo run --release -- --coach-variant v7-unified
+cargo run --release --features cuda -- --coach-variant v7-unified
 
 # Scripted test (outputs JSON)
-cargo run --release -- --script prompts/test_scripts/standard_5turn.toml --coach-variant v7-unified
+cargo run --release --features cuda -- --script prompts/test_scripts/standard_5turn.toml --coach-variant v7-unified
 
 # Benchmark single prompt
-cargo run --release -- --bench "I've been feeling really down lately"
+cargo run --release --features cuda -- --bench "I've been feeling really down lately"
 ```
 
 Requires a GGUF model at `models/plotinus.gguf` (symlink to quantized export from Plotinus).
@@ -98,5 +128,5 @@ Requires a GGUF model at `models/plotinus.gguf` (symlink to quantized export fro
 ## Requirements
 
 - Rust 2024 edition
-- NVIDIA GPU with CUDA (llama-cpp-2 with `cuda` feature)
+- GPU toolkit matching your chosen feature flag (optional — CPU works without any)
 - GGUF model file (exported from Plotinus training pipeline)
