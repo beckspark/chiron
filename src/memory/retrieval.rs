@@ -32,10 +32,10 @@ pub async fn retrieve_context(
     );
 
     RetrievalContext {
-        user_facts: user_facts.unwrap_or_default(),
-        session_summaries: session_summaries.unwrap_or_default(),
-        significant_turns: significant_turns.unwrap_or_default(),
-        mi_knowledge: mi_knowledge.unwrap_or_default(),
+        user_facts: log_retrieval_err("user_knowledge", user_facts),
+        session_summaries: log_retrieval_err("session_summaries", session_summaries),
+        significant_turns: log_retrieval_err("significant_turns", significant_turns),
+        mi_knowledge: log_retrieval_err("mi_knowledge", mi_knowledge),
     }
 }
 
@@ -87,6 +87,16 @@ pub fn format_rag_context(ctx: &RetrievalContext) -> Option<String> {
         None
     } else {
         Some(sections.join("\n\n"))
+    }
+}
+
+fn log_retrieval_err<T: Default>(table: &str, result: Result<T>) -> T {
+    match result {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(table, error = %e, "RAG retrieval failed, skipping");
+            T::default()
+        }
     }
 }
 
@@ -180,6 +190,28 @@ mod tests {
         assert!(format_rag_context(&ctx).is_none());
     }
 
+    /// Verifies that retrieve_context on empty tables returns empty results without errors.
+    #[tokio::test]
+    async fn test_retrieve_from_empty_tables() {
+        use crate::memory::embeddings::init_embedding_model;
+        use crate::memory::vectors;
+
+        let dir = tempfile::tempdir().unwrap();
+        let conn = vectors::open_vector_db(dir.path().to_str().unwrap())
+            .await
+            .unwrap();
+        vectors::ensure_tables(&conn).await.unwrap();
+
+        let model = init_embedding_model();
+        let ctx = retrieve_context(&conn, &model, "how are you feeling today", None, 3).await;
+
+        assert!(ctx.user_facts.is_empty());
+        assert!(ctx.session_summaries.is_empty());
+        assert!(ctx.significant_turns.is_empty());
+        assert!(ctx.mi_knowledge.is_empty());
+        assert!(format_rag_context(&ctx).is_none());
+    }
+
     #[test]
     fn test_format_user_facts_only() {
         let ctx = RetrievalContext {
@@ -198,6 +230,67 @@ mod tests {
         assert!(formatted.contains("## What You Know About This Person"));
         assert!(formatted.contains("[goal] reduce drinking"));
         assert!(!formatted.contains("## Previous Sessions"));
+    }
+
+    /// Full round-trip: embed → insert → retrieve → format → preamble assembly.
+    /// Tests the complete data path from vector store to the model's system prompt.
+    #[tokio::test]
+    async fn test_rag_context_round_trip() {
+        use crate::agents::peer::build_peer_coach_preamble;
+        use crate::memory::embeddings::init_embedding_model;
+        use crate::memory::vectors;
+        use rig::embeddings::EmbeddingModel as _;
+
+        let dir = tempfile::tempdir().unwrap();
+        let conn = vectors::open_vector_db(dir.path().to_str().unwrap())
+            .await
+            .unwrap();
+        vectors::ensure_tables(&conn).await.unwrap();
+
+        let model = init_embedding_model();
+
+        // Build a UserFact and embed its content
+        let fact_content = "wants to cut back on drinking to weekends only";
+        let fact = vectors::UserFact {
+            id: uuid::Uuid::new_v4().to_string(),
+            fact_type: "goal".into(),
+            content: fact_content.into(),
+            source_session: "session-001".into(),
+            last_confirmed: "session-001".into(),
+            created_at: "2026-03-22".into(),
+            updated_at: "2026-03-22".into(),
+        };
+
+        let embedding = model.embed_text(fact_content).await.unwrap();
+        vectors::add_user_fact(&conn, &fact, &embedding.vec).await.unwrap();
+
+        // Retrieve with a relevant query
+        let ctx = retrieve_context(&conn, &model, "tell me about your drinking habits", None, 3).await;
+        assert!(!ctx.user_facts.is_empty(), "should retrieve the inserted fact");
+        assert!(
+            ctx.user_facts[0].content.contains("drinking"),
+            "retrieved fact should be about drinking"
+        );
+
+        // Format into RAG context
+        let formatted = format_rag_context(&ctx).expect("should produce formatted context");
+        assert!(formatted.contains("## What You Know About This Person"));
+        assert!(formatted.contains("cut back on drinking"));
+
+        // Pass through preamble builder and verify placement
+        let preamble = build_peer_coach_preamble(
+            "You are a peer supporter.",
+            Some("Think carefully."),
+            Some("MI Stage: evoke\nRunning Themes: drinking"),
+            None,
+            Some(&formatted),
+        );
+
+        // RAG context present and in correct position (before case notes)
+        let rag_pos = preamble.find("What You Know About This Person").unwrap();
+        let notes_pos = preamble.find("Session Context").unwrap();
+        assert!(rag_pos < notes_pos, "RAG context should precede case notes in preamble");
+        assert!(preamble.contains("cut back on drinking"), "fact content in preamble");
     }
 
     #[test]

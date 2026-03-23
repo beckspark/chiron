@@ -174,4 +174,65 @@ mod tests {
         let preamble = build_peer_coach_preamble(TEST_BASE, None, None, None, Some(""));
         assert_eq!(preamble, TEST_BASE);
     }
+
+    #[test]
+    fn test_preamble_full_stack_assembly() {
+        // Load real mode catalog from prompts/modes.toml
+        let catalog = crate::catalog::ModeCatalog::load(std::path::Path::new("prompts/modes.toml"))
+            .expect("modes.toml should be loadable in tests");
+
+        let think_instructions = "Think carefully. Include [MI-STAGE], [STRATEGY], [TALK-TYPE], [THEMES].";
+        let rag_context = "## What You Know About This Person\n- Lost job 3 months ago\n- Drinking more since then";
+        // Case notes with resistance keyword to trigger mode detection
+        let case_notes = "MI Stage: evoke\nStrategy Used: rolling with resistance\nRunning Themes: drinking, job, anxiety";
+
+        let preamble = build_peer_coach_preamble(
+            TEST_BASE,
+            Some(think_instructions),
+            Some(case_notes),
+            Some(&catalog),
+            Some(rag_context),
+        );
+
+        // All 5 sections present
+        assert!(preamble.starts_with(TEST_BASE), "base preamble first");
+        assert!(preamble.contains(think_instructions), "think instructions present");
+        assert!(preamble.contains("What You Know About This Person"), "RAG context present");
+        assert!(preamble.contains("## Session Context"), "case notes section present");
+        assert!(preamble.contains("## Technique Guidance"), "technique guidance present");
+        assert!(preamble.contains("## Current Mode"), "mode modifier present");
+
+        // Ordering: think → RAG → case notes → technique → mode
+        let think_pos = preamble.find(think_instructions).unwrap();
+        let rag_pos = preamble.find("What You Know").unwrap();
+        let notes_pos = preamble.find("## Session Context").unwrap();
+        let technique_pos = preamble.find("## Technique Guidance").unwrap();
+        let mode_pos = preamble.find("## Current Mode").unwrap();
+
+        assert!(think_pos < rag_pos, "think instructions before RAG");
+        assert!(rag_pos < notes_pos, "RAG before case notes");
+        assert!(notes_pos < technique_pos, "case notes before technique");
+        assert!(technique_pos < mode_pos, "technique before mode");
+    }
+
+    #[test]
+    fn test_mode_detection_keywords() {
+        let catalog = crate::catalog::ModeCatalog::load(std::path::Path::new("prompts/modes.toml"))
+            .expect("modes.toml should be loadable in tests");
+
+        // Resistance mode triggered by keyword
+        let notes_resistance = "MI Stage: evoke\nStrategy Used: rolling with resistance";
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes_resistance), Some(&catalog), None);
+        assert!(preamble.contains("## Current Mode"), "resistance mode should trigger");
+
+        // Change-talk mode triggered by keyword
+        let notes_change = "MI Stage: evoke\nTalk Type: change talk";
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes_change), Some(&catalog), None);
+        assert!(preamble.contains("## Current Mode"), "change-talk mode should trigger");
+
+        // No mode when notes have no trigger keywords
+        let notes_plain = "MI Stage: focus\nRunning Themes: work";
+        let preamble = build_peer_coach_preamble(TEST_BASE, None, Some(notes_plain), Some(&catalog), None);
+        assert!(!preamble.contains("## Current Mode"), "no mode modifier for plain focus notes");
+    }
 }

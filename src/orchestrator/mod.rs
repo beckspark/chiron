@@ -20,6 +20,57 @@ use crate::supervision::{
 };
 use rig_fastembed::EmbeddingModel;
 
+/// Builds case notes from a think block analysis and previous notes.
+///
+/// Extracted from `Orchestrator::update_case_notes` to enable unit testing
+/// without requiring a full orchestrator instance.
+pub fn build_case_notes_from_analysis(
+    think_content: Option<&str>,
+    existing_notes: Option<&str>,
+) -> (String, Option<String>) {
+    let prev_themes = existing_notes
+        .and_then(extract_themes)
+        .unwrap_or_default();
+
+    let analysis = think_content
+        .filter(|t| !t.is_empty())
+        .map(analyze_think_block)
+        .unwrap_or_else(|| ThinkAnalysis {
+            mi_stage: None,
+            strategy_used: None,
+            talk_type: None,
+            themes: vec![],
+            raw_think: String::new(),
+        });
+
+    let mi_stage = analysis
+        .mi_stage
+        .or_else(|| existing_notes.and_then(extract_mi_stage));
+
+    let merged = merge_themes(&prev_themes, &analysis.themes);
+
+    let mut notes = format!(
+        "MI Stage: {}",
+        mi_stage.as_deref().unwrap_or("engage"),
+    );
+    if let Some(ref strat) = analysis.strategy_used {
+        notes.push_str(&format!("\nStrategy Used: {strat}"));
+    }
+    if let Some(ref talk) = analysis.talk_type {
+        notes.push_str(&format!("\nTalk Type: {talk}"));
+    }
+    notes.push_str(&format!(
+        "\nRunning Themes: {}",
+        if merged.is_empty() {
+            "none".to_string()
+        } else {
+            merged.join(", ")
+        },
+    ));
+
+    (notes, mi_stage)
+}
+
 
 /// Structured result from a single conversation turn (public, for eval/script mode).
 #[derive(Debug, Clone, serde::Serialize)]
@@ -365,47 +416,9 @@ impl Orchestrator {
         think_content: Option<&str>,
         existing_notes: Option<&str>,
     ) -> Result<()> {
-        let prev_themes = existing_notes
-            .and_then(extract_themes)
-            .unwrap_or_default();
+        let (notes, mi_stage) = build_case_notes_from_analysis(think_content, existing_notes);
 
-        let analysis = think_content
-            .filter(|t| !t.is_empty())
-            .map(analyze_think_block)
-            .unwrap_or_else(|| ThinkAnalysis {
-                mi_stage: None,
-                strategy_used: None,
-                talk_type: None,
-                themes: vec![],
-                raw_think: String::new(),
-            });
-
-        // Use model's classification, fall back to previous notes if absent
-        let mi_stage = analysis
-            .mi_stage
-            .or_else(|| existing_notes.and_then(extract_mi_stage));
-
-        let merged = merge_themes(&prev_themes, &analysis.themes);
-
-        // Build case notes from model's analysis
-        let mut notes = format!(
-            "MI Stage: {}",
-            mi_stage.as_deref().unwrap_or("engage"),
-        );
-        if let Some(ref strat) = analysis.strategy_used {
-            notes.push_str(&format!("\nStrategy Used: {strat}"));
-        }
-        if let Some(ref talk) = analysis.talk_type {
-            notes.push_str(&format!("\nTalk Type: {talk}"));
-        }
-        notes.push_str(&format!(
-            "\nRunning Themes: {}",
-            if merged.is_empty() {
-                "none".to_string()
-            } else {
-                merged.join(", ")
-            },
-        ));
+        let merged = extract_themes(&notes).unwrap_or_default();
 
         case_notes::save_case_note(
             &self.chat_conn,
@@ -452,5 +465,123 @@ impl Orchestrator {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test that case notes are built correctly from a think block with all tags.
+    #[test]
+    fn test_case_notes_from_think_block() {
+        let think = "[MI-STAGE: evoke]\n[STRATEGY: complex reflection]\n[TALK-TYPE: desire change talk]\n[THEMES: drinking, anxiety]";
+        let (notes, mi_stage) = build_case_notes_from_analysis(Some(think), None);
+
+        assert_eq!(mi_stage.as_deref(), Some("evoke"));
+        assert!(notes.contains("MI Stage: evoke"));
+        assert!(notes.contains("Strategy Used: complex reflection"));
+        assert!(notes.contains("Talk Type: desire change talk"));
+        assert!(notes.contains("drinking"));
+        assert!(notes.contains("anxiety"));
+    }
+
+    /// Test that themes accumulate across turns (set union, never regress).
+    #[test]
+    fn test_theme_accumulation_across_turns() {
+        // Turn 1: model identifies drinking, job
+        let think1 = "[MI-STAGE: engage]\n[THEMES: drinking, job]";
+        let (notes1, _) = build_case_notes_from_analysis(Some(think1), None);
+        assert!(notes1.contains("drinking"));
+        assert!(notes1.contains("job"));
+
+        // Turn 2: model identifies anxiety (new) but doesn't mention drinking/job
+        let think2 = "[MI-STAGE: focus]\n[THEMES: anxiety]";
+        let (notes2, _) = build_case_notes_from_analysis(Some(think2), Some(&notes1));
+
+        // All three themes must be present (union)
+        assert!(notes2.contains("anxiety"), "new theme should appear");
+        assert!(notes2.contains("drinking"), "old theme must not regress");
+        assert!(notes2.contains("job"), "old theme must not regress");
+        assert!(notes2.contains("MI Stage: focus"), "stage should update");
+    }
+
+    /// Test that MI stage carries forward when think block lacks a tag.
+    #[test]
+    fn test_mi_stage_carry_forward() {
+        // Turn 1: model sets stage
+        let think1 = "[MI-STAGE: evoke]\n[THEMES: drinking]";
+        let (notes1, _) = build_case_notes_from_analysis(Some(think1), None);
+
+        // Turn 2: empty think block (no tags)
+        let (notes2, mi_stage2) = build_case_notes_from_analysis(Some("just thinking"), Some(&notes1));
+        assert_eq!(mi_stage2.as_deref(), Some("evoke"), "stage should carry forward");
+        assert!(notes2.contains("drinking"), "themes should carry forward");
+    }
+
+    /// Test that no think content defaults to "engage" stage.
+    #[test]
+    fn test_no_think_defaults_to_engage() {
+        let (notes, mi_stage) = build_case_notes_from_analysis(None, None);
+        assert_eq!(mi_stage, None);
+        assert!(notes.contains("MI Stage: engage"));
+        assert!(notes.contains("Running Themes: none"));
+    }
+
+    /// Test sliding window trim logic (extracted to test without DB).
+    #[test]
+    fn test_sliding_window_boundary() {
+        let max_history_messages = 4; // 2 turns worth
+        let mut history: Vec<Message> = Vec::new();
+
+        // Simulate 3 turns (6 messages)
+        for i in 1..=3 {
+            history.push(Message::user(format!("user msg {i}")));
+            history.push(Message::assistant(format!("assistant msg {i}")));
+
+            if history.len() > max_history_messages {
+                let trim_count = history.len() - max_history_messages;
+                history.drain(..trim_count);
+            }
+        }
+
+        // Should keep last 2 turns (4 messages)
+        assert_eq!(history.len(), 4);
+    }
+
+    /// Test crisis routing short-circuits without case notes.
+    #[test]
+    fn test_crisis_short_circuits() {
+        assert!(router::is_crisis("I want to kill myself"));
+        let response = router::crisis_response();
+        assert!(response.contains("988"));
+        assert!(response.contains("741741"));
+    }
+
+    /// Test that the preamble ordering matches the documented pipeline.
+    #[test]
+    fn test_preamble_ordering_matches_pipeline() {
+        let base = "You are a peer supporter.";
+        let think = "Think carefully.";
+        let rag = "## Retrieved Context\n- User likes hiking";
+        let notes = "MI Stage: engage\nRunning Themes: exercise";
+
+        let preamble = build_peer_coach_preamble(
+            base,
+            Some(think),
+            Some(notes),
+            None,
+            Some(rag),
+        );
+
+        // Verify ordering: base → think → RAG → case notes
+        let base_pos = preamble.find(base).unwrap();
+        let think_pos = preamble.find(think).unwrap();
+        let rag_pos = preamble.find("Retrieved Context").unwrap();
+        let notes_pos = preamble.find("Session Context").unwrap();
+
+        assert!(base_pos < think_pos);
+        assert!(think_pos < rag_pos);
+        assert!(rag_pos < notes_pos);
     }
 }

@@ -631,6 +631,8 @@ fn run_inference_streaming(
 
     tracing::info!(
         tokens_generated,
+        prompt_tokens = prompt_token_count,
+        max_tokens,
         decode_ms = decode_elapsed.as_millis() as u64,
         decode_tok_per_sec = format!("{decode_tok_per_sec:.1}"),
         total_ms = t0.elapsed().as_millis() as u64,
