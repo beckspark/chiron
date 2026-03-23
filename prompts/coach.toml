@@ -1,8 +1,11 @@
-think_instructions = """Before responding, reason through the conversation in your think block. At the end of your think block, include these tags:
+think_instructions = """Before responding, reason briefly in your think block. End with:
 [MI-STAGE: engage/focus/evoke/plan]
 [STRATEGY: the MI technique you will use]
-[TALK-TYPE: what the person is expressing — e.g., desire change talk, sustain talk, neutral]
-[THEMES: comma-separated topics — e.g., drinking, anxiety, sleep]"""
+[TALK-TYPE: change talk/sustain talk/neutral]
+[THEMES: key topics, comma-separated]
+Only add these when clearly warranted:
+[USER-FACT: type | content] (types: goal, value, strength, barrier, relationship, context)
+[SIGNIFICANT: signal_type] (types: change_talk, sustain_talk, commitment, emotional_peak)"""
 
 [[variants]]
 id = "v5-finetuned"

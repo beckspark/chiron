@@ -11,6 +11,10 @@ pub struct ThinkAnalysis {
     pub talk_type: Option<String>,
     /// Themes mentioned in the think block.
     pub themes: Vec<String>,
+    /// User facts extracted via `[USER-FACT: type | content]` tags.
+    pub user_facts: Vec<(String, String)>,
+    /// Significant turn signal detected via `[SIGNIFICANT: signal_type]` tag.
+    pub significant_signal: Option<String>,
     /// Raw think block content for logging.
     pub raw_think: String,
 }
@@ -34,12 +38,16 @@ pub fn analyze_think_block(think_content: &str) -> ThinkAnalysis {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let user_facts = parse_user_facts(think_content);
+    let significant_signal = parse_tag(think_content, "SIGNIFICANT");
 
     ThinkAnalysis {
         mi_stage,
         strategy_used,
         talk_type,
         themes,
+        user_facts,
+        significant_signal,
         raw_think: think_content.to_string(),
     }
 }
@@ -57,6 +65,37 @@ fn parse_tag(text: &str, tag: &str) -> Option<String> {
     } else {
         Some(value.to_lowercase())
     }
+}
+
+/// Parses all `[USER-FACT: type | content]` tags from think block text.
+///
+/// Unlike other tags, there can be multiple USER-FACT tags per think block.
+/// Each is split on `|` to extract `(fact_type, content)`.
+fn parse_user_facts(text: &str) -> Vec<(String, String)> {
+    let lower = text.to_lowercase();
+    let pattern = "[user-fact:";
+    let mut facts = Vec::new();
+    let mut search_start = 0;
+
+    while let Some(pos) = lower[search_start..].find(pattern) {
+        let abs_pos = search_start + pos;
+        let after_tag = abs_pos + pattern.len();
+        if let Some(end) = text[after_tag..].find(']') {
+            let value = text[after_tag..after_tag + end].trim();
+            if let Some((fact_type, content)) = value.split_once('|') {
+                let ft = fact_type.trim().to_lowercase();
+                let ct = content.trim().to_string();
+                if !ft.is_empty() && !ct.is_empty() {
+                    facts.push((ft, ct));
+                }
+            }
+            search_start = after_tag + end + 1;
+        } else {
+            break;
+        }
+    }
+
+    facts
 }
 
 /// Extracts themes from the `Running Themes:` line in case notes.
@@ -96,17 +135,30 @@ pub fn extract_mi_stage(notes: &str) -> Option<String> {
         })
 }
 
-/// Merges previous and new themes with order-preserving set union.
-pub fn merge_themes(previous: &[String], new: &[String]) -> Vec<String> {
-    let mut seen: HashSet<String> = previous.iter().cloned().collect();
-    let mut merged: Vec<String> = previous.to_vec();
+/// Merges previous and new themes with recency-biased capping.
+///
+/// New themes get priority (most recently observed). Previous themes fill
+/// remaining slots up to `max_themes`. This prevents unbounded accumulation
+/// that would bloat case notes and squeeze the token budget.
+pub fn merge_themes(previous: &[String], new: &[String], max_themes: usize) -> Vec<String> {
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut merged: Vec<String> = Vec::new();
 
+    // New themes first (highest priority — most recently observed)
     for theme in new {
         if seen.insert(theme.clone()) {
             merged.push(theme.clone());
         }
     }
 
+    // Previous themes fill remaining slots
+    for theme in previous {
+        if seen.insert(theme.clone()) {
+            merged.push(theme.clone());
+        }
+    }
+
+    merged.truncate(max_themes);
     merged
 }
 
@@ -166,12 +218,83 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_single_user_fact() {
+        let think = "They mentioned wanting to cut back.\n[MI-STAGE: evoke]\n[USER-FACT: goal | reduce drinking to weekends only]";
+        let analysis = analyze_think_block(think);
+        assert_eq!(analysis.user_facts.len(), 1);
+        assert_eq!(analysis.user_facts[0].0, "goal");
+        assert_eq!(analysis.user_facts[0].1, "reduce drinking to weekends only");
+    }
+
+    #[test]
+    fn test_parse_multiple_user_facts() {
+        let think = "[USER-FACT: goal | quit smoking]\nSome reasoning here.\n[USER-FACT: barrier | lives with smokers]\n[USER-FACT: strength | ran a 5k last year]";
+        let analysis = analyze_think_block(think);
+        assert_eq!(analysis.user_facts.len(), 3);
+        assert_eq!(analysis.user_facts[0], ("goal".into(), "quit smoking".into()));
+        assert_eq!(analysis.user_facts[1], ("barrier".into(), "lives with smokers".into()));
+        assert_eq!(analysis.user_facts[2], ("strength".into(), "ran a 5k last year".into()));
+    }
+
+    #[test]
+    fn test_parse_no_user_facts() {
+        let think = "[MI-STAGE: engage]\nJust regular reasoning.";
+        let analysis = analyze_think_block(think);
+        assert!(analysis.user_facts.is_empty());
+    }
+
+    #[test]
+    fn test_parse_malformed_user_fact() {
+        // Missing pipe separator — should be skipped
+        let think = "[USER-FACT: goal without pipe]\n[USER-FACT: | empty type]";
+        let analysis = analyze_think_block(think);
+        assert!(analysis.user_facts.is_empty());
+    }
+
+    #[test]
+    fn test_parse_significant_signal() {
+        let think = "[MI-STAGE: evoke]\n[SIGNIFICANT: change_talk]\nThey expressed desire to change.";
+        let analysis = analyze_think_block(think);
+        assert_eq!(analysis.significant_signal, Some("change_talk".into()));
+    }
+
+    #[test]
+    fn test_parse_no_significant() {
+        let think = "[MI-STAGE: engage]\nNormal conversation.";
+        let analysis = analyze_think_block(think);
+        assert_eq!(analysis.significant_signal, None);
+    }
+
+    #[test]
     fn test_merge_themes() {
         let prev = vec!["drinking".to_string(), "breakup".to_string()];
         let new = vec!["breakup".to_string(), "sleep".to_string()];
+        // New themes first, then previous (deduped)
         assert_eq!(
-            merge_themes(&prev, &new),
-            vec!["drinking", "breakup", "sleep"]
+            merge_themes(&prev, &new, 8),
+            vec!["breakup", "sleep", "drinking"]
         );
+    }
+
+    #[test]
+    fn test_merge_themes_respects_cap() {
+        let prev: Vec<String> = (1..=10).map(|i| format!("old_{i}")).collect();
+        let new = vec!["new_a".to_string(), "new_b".to_string()];
+        let merged = merge_themes(&prev, &new, 8);
+        assert_eq!(merged.len(), 8);
+        // New themes always retained
+        assert_eq!(merged[0], "new_a");
+        assert_eq!(merged[1], "new_b");
+        // Oldest previous themes get evicted
+        assert!(!merged.contains(&"old_9".to_string()));
+        assert!(!merged.contains(&"old_10".to_string()));
+    }
+
+    #[test]
+    fn test_merge_themes_cap_preserves_recent() {
+        let prev = vec!["old1".into(), "old2".into(), "old3".into()];
+        let new = vec!["new1".into(), "new2".into()];
+        let merged = merge_themes(&prev, &new, 3);
+        assert_eq!(merged, vec!["new1", "new2", "old1"]);
     }
 }
