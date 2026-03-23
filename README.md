@@ -19,10 +19,16 @@ User Input
 [Case Notes DB] ──load──> Previous MI stage, strategy, running themes
     |
     v
-[Preamble Builder] ── Assembles system prompt from:
+[RAG Retrieval] ── Queries LanceDB vector store for relevant context:
+    |                user facts, session history, MI technique knowledge
+    |                Budget-capped at 400 chars, priority-ordered
+    |
+    v
+[Preamble Builder] ── Assembles system prompt (budget: 1200 chars) from:
     |                   - Base MI coaching prompt (coach.toml variant)
     |                   - Think block tag instructions
     |                   - Session context (case notes from prior turns)
+    |                   - RAG context (user facts, MI knowledge, session history)
     |                   - Stage-matched technique guidance (engage/focus/evoke/plan)
     |                   - Mode modifier (resistance/change-talk/ambivalence/crisis)
     |
@@ -43,7 +49,12 @@ User Input
     |
     v
 [Sliding Window] ── Trims chat history to 4 turns (context budget)
-                     Case notes preserve accumulated context beyond window
+    |                 Case notes preserve accumulated context beyond window
+    |
+    v
+[RAG Storage] ── Background: stores user facts (deduplicated),
+                  significant turns, and sliding window checkpoints
+                  into LanceDB for future retrieval
 ```
 
 ### Model / Coach Supervision
@@ -56,6 +67,10 @@ The model produces structured metadata tags inside its `<think>` block before ev
 4. Model adapts its strategy based on the accumulated clinical picture
 
 This lets a small local model (4B parameters, 2.5GB quantized) maintain coherent multi-turn coaching direction without external orchestration.
+
+### Long-term memory (RAG)
+
+Beyond the sliding window and case notes, Chiron maintains a LanceDB vector store (fastembed BGE-Small-EN embeddings) with five tables: user facts learned from conversation, session summaries, session checkpoints (stored when the sliding window drains), significant turns, and MI technique knowledge. Each turn, the retrieval pipeline queries relevant context and injects it into the preamble within a budget. User facts are deduplicated by cosine similarity so repeated mentions update rather than accumulate. MI knowledge is auto-seeded from `data/mi_knowledge.md` on first run.
 
 ### Routing and mode detection
 
@@ -72,6 +87,9 @@ For non-crisis turns, the `peer` agent detects conversation modes (resistance, c
 | `provider/llamacpp` | Rig `CompletionModel` impl wrapping llama-cpp-2 |
 | `supervision/think_parser` | Parses `[MI-STAGE]`, `[STRATEGY]`, `[TALK-TYPE]`, `[THEMES]` from think blocks |
 | `memory/case_notes` | SQLite persistence for clinical state across turns |
+| `memory/vectors` | LanceDB vector store: user facts, sessions, checkpoints, MI knowledge |
+| `memory/retrieval` | RAG retrieval pipeline with budget-aware context formatting |
+| `memory/seed` | Parses MI knowledge markdown and seeds vector store |
 | `router` | Pre-inference crisis keyword detection + safety responses |
 | `catalog` | TOML-driven prompt variants and conversation mode definitions |
 
@@ -112,9 +130,12 @@ cargo run --release --features cuda -- --script prompts/test_scripts/standard_5t
 
 # Benchmark single prompt
 cargo run --release --features cuda -- --bench "I've been feeling really down lately"
+
+# Reset all user data (SQLite + vectors) and start fresh
+cargo run --release --features cuda -- --reset
 ```
 
-Requires a GGUF model at `models/plotinus.gguf` (symlink to quantized export from Plotinus).
+Requires a GGUF model at `models/plotinus.gguf` (symlink to quantized export from Plotinus). On first run, MI knowledge is auto-seeded into the vector store from `data/mi_knowledge.md`.
 
 ## Prompt Configuration
 
@@ -125,3 +146,4 @@ Requires a GGUF model at `models/plotinus.gguf` (symlink to quantized export fro
 - Rust 2024 edition
 - GPU toolkit matching your chosen feature flag (optional — CPU works without any)
 - GGUF model file (exported from Plotinus training pipeline)
+- ~500MB disk for LanceDB vector store and fastembed model cache (created automatically)
