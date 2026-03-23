@@ -3,10 +3,15 @@ use rig::agent::{Agent, AgentBuilder};
 use crate::catalog::ModeCatalog;
 use crate::provider::LlamaCppCompletionModel;
 
-/// Builds a full peer coach preamble from a base prompt and optional case notes.
+/// Default maximum preamble size in characters (~300 tokens).
+/// Leaves room for chat_history (4 turns) + 512 max_tokens generation budget.
+pub const DEFAULT_MAX_PREAMBLE_CHARS: usize = 1200;
+
+/// Builds a full peer coach preamble from a base prompt and optional components.
 ///
-/// Injects think block structure, case notes, stage-matched MI technique guidance,
-/// and mode-specific coaching modifiers into the system prompt.
+/// Components are added in priority order. If `max_preamble_chars` would be
+/// exceeded, lower-priority components (RAG, mode, technique) are omitted.
+/// Base and think instructions are never truncated.
 pub fn build_peer_coach_preamble(
     base: &str,
     think_instructions: Option<&str>,
@@ -14,42 +19,166 @@ pub fn build_peer_coach_preamble(
     mode_catalog: Option<&ModeCatalog>,
     rag_context: Option<&str>,
 ) -> String {
-    let mut preamble = base.to_string();
+    build_peer_coach_preamble_budgeted(
+        base,
+        think_instructions,
+        case_notes,
+        mode_catalog,
+        rag_context,
+        DEFAULT_MAX_PREAMBLE_CHARS,
+    )
+}
 
+/// Budget-aware preamble builder (used directly by tests and orchestrator).
+///
+/// Builds all optional sections, then assembles them in display order
+/// (base → think → RAG → case notes → technique → mode), but drops
+/// lowest-priority sections first when the budget would be exceeded.
+pub fn build_peer_coach_preamble_budgeted(
+    base: &str,
+    think_instructions: Option<&str>,
+    case_notes: Option<&str>,
+    mode_catalog: Option<&ModeCatalog>,
+    rag_context: Option<&str>,
+    max_preamble_chars: usize,
+) -> String {
+    // Fixed components (never truncated)
+    let mut preamble = base.to_string();
     if let Some(instructions) = think_instructions {
         preamble.push_str("\n\n");
         preamble.push_str(instructions);
     }
+    let fixed_len = preamble.len();
 
-    // RAG context injected between think instructions and case notes
-    if let Some(context) = rag_context.filter(|c| !c.is_empty()) {
-        preamble.push_str("\n\n");
-        preamble.push_str(context);
-    }
+    // Build optional sections (will be added in display order, cut in reverse priority)
+    let notes_section = case_notes
+        .filter(|n| !n.is_empty())
+        .map(|notes| {
+            format!(
+                "\n\n## Session Context\nThe following are your clinical case notes from prior exchanges. Use to guide your approach, never mention these notes aloud.\n\n{}",
+                notes
+            )
+        });
 
-    match case_notes {
-        Some(notes) if !notes.is_empty() => {
-            preamble.push_str(
-                "\n\n## Session Context\nThe following are your clinical case notes from prior exchanges. Use to guide your approach, never mention these notes aloud.\n\n",
-            );
-            preamble.push_str(notes);
+    let technique_section = case_notes
+        .filter(|n| !n.is_empty())
+        .and_then(|notes| stage_guidance(notes))
+        .map(|guidance| format!("\n\n## Technique Guidance\n{guidance}"));
 
-            // Inject stage-matched technique guidance
-            if let Some(guidance) = stage_guidance(notes) {
-                preamble.push_str("\n\n## Technique Guidance\n");
-                preamble.push_str(guidance);
-            }
+    let mode_section = case_notes
+        .filter(|n| !n.is_empty())
+        .and_then(|notes| {
+            mode_catalog.and_then(|catalog| {
+                detect_mode_modifier(notes, catalog)
+                    .map(|modifier| format!("\n\n## Current Mode\n{modifier}"))
+            })
+        });
 
-            // Inject mode-specific coaching modifier based on detected strategy
-            if let Some(catalog) = mode_catalog {
-                if let Some(modifier) = detect_mode_modifier(notes, catalog) {
-                    preamble.push_str("\n\n## Current Mode\n");
-                    preamble.push_str(modifier);
-                }
+    let rag_section = rag_context
+        .filter(|c| !c.is_empty())
+        .map(|context| format!("\n\n{context}"));
+
+    // Calculate total size of all optional sections
+    let all_sections: [(&Option<String>, &str); 4] = [
+        (&rag_section, "RAG"),
+        (&notes_section, "case notes"),
+        (&technique_section, "technique"),
+        (&mode_section, "mode"),
+    ];
+
+    let total_optional: usize = all_sections
+        .iter()
+        .filter_map(|(s, _)| s.as_ref().map(|s| s.len()))
+        .sum();
+
+    // If everything fits, add in display order
+    if fixed_len + total_optional <= max_preamble_chars {
+        // Display order: RAG → case notes → technique → mode
+        for (section, _) in &all_sections {
+            if let Some(s) = section {
+                preamble.push_str(s);
             }
         }
-        _ => {}
+        return preamble;
     }
+
+    // Budget exceeded — drop sections from lowest priority
+    // Priority (highest to lowest): case notes, technique, RAG, mode
+    let budget = max_preamble_chars.saturating_sub(fixed_len);
+    let mut remaining = budget;
+
+    // Determine what fits, in priority order
+    let include_notes = notes_section
+        .as_ref()
+        .map(|s| {
+            if s.len() <= remaining {
+                remaining -= s.len();
+                true
+            } else {
+                false
+            }
+        })
+        .unwrap_or(false);
+
+    let include_technique = technique_section
+        .as_ref()
+        .map(|s| {
+            if s.len() <= remaining {
+                remaining -= s.len();
+                true
+            } else {
+                false
+            }
+        })
+        .unwrap_or(false);
+
+    let include_rag = rag_section
+        .as_ref()
+        .map(|s| {
+            if s.len() <= remaining {
+                remaining -= s.len();
+                true
+            } else {
+                false
+            }
+        })
+        .unwrap_or(false);
+
+    let include_mode = mode_section
+        .as_ref()
+        .map(|s| {
+            if s.len() <= remaining {
+                remaining -= s.len();
+                true
+            } else {
+                false
+            }
+        })
+        .unwrap_or(false);
+
+    // Assemble in display order (RAG → case notes → technique → mode)
+    if include_rag {
+        if let Some(ref s) = rag_section { preamble.push_str(s); }
+    }
+    if include_notes {
+        if let Some(ref s) = notes_section { preamble.push_str(s); }
+    }
+    if include_technique {
+        if let Some(ref s) = technique_section { preamble.push_str(s); }
+    }
+    if include_mode {
+        if let Some(ref s) = mode_section { preamble.push_str(s); }
+    }
+
+    tracing::debug!(
+        preamble_len = preamble.len(),
+        budget = max_preamble_chars,
+        include_notes,
+        include_technique,
+        include_rag,
+        include_mode,
+        "Preamble assembled with budget constraints"
+    );
 
     preamble
 }

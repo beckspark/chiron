@@ -41,46 +41,29 @@ pub async fn retrieve_context(
 
 /// Formats retrieved context into structured preamble sections.
 ///
-/// Returns `None` if all sections are empty.
-pub fn format_rag_context(ctx: &RetrievalContext) -> Option<String> {
+/// Sections are built in priority order (user facts > significant turns >
+/// session summaries > MI knowledge). If `max_chars` is exceeded, remaining
+/// sections are omitted. Returns `None` if all sections are empty.
+pub fn format_rag_context(ctx: &RetrievalContext, max_chars: usize) -> Option<String> {
     let mut sections = Vec::new();
+    let mut total_len = 0;
+    let separator_len = 2; // "\n\n" between sections
 
-    if !ctx.user_facts.is_empty() {
-        let mut s = String::from("## What You Know About This Person");
-        for fact in &ctx.user_facts {
-            s.push_str(&format!("\n- [{}] {}", fact.fact_type, fact.content));
-        }
-        sections.push(s);
-    }
+    // Build sections in priority order, stop when budget exhausted
+    let candidate_sections = [
+        build_user_facts_section(&ctx.user_facts),
+        build_significant_turns_section(&ctx.significant_turns),
+        build_session_summaries_section(&ctx.session_summaries),
+        build_mi_knowledge_section(&ctx.mi_knowledge),
+    ];
 
-    if !ctx.session_summaries.is_empty() {
-        let mut s = String::from("## Previous Sessions");
-        for summary in &ctx.session_summaries {
-            s.push_str(&format!(
-                "\n- [{}] {} (MI stage: {} -> {})",
-                summary.created_at, summary.summary, summary.mi_stage_start, summary.mi_stage_end
-            ));
+    for section in candidate_sections.into_iter().flatten() {
+        let added_len = section.len() + if sections.is_empty() { 0 } else { separator_len };
+        if total_len + added_len > max_chars {
+            break;
         }
-        sections.push(s);
-    }
-
-    if !ctx.significant_turns.is_empty() {
-        let mut s = String::from("## Relevant Past Moments");
-        for turn in &ctx.significant_turns {
-            s.push_str(&format!(
-                "\n- \"{}\" ({}, {})",
-                turn.user_content, turn.signal_type, turn.talk_type
-            ));
-        }
-        sections.push(s);
-    }
-
-    if !ctx.mi_knowledge.is_empty() {
-        let mut s = String::from("## MI Technique Guidance");
-        for k in &ctx.mi_knowledge {
-            s.push_str(&format!("\n- [{}] {}", k.category, k.content));
-        }
-        sections.push(s);
+        total_len += added_len;
+        sections.push(section);
     }
 
     if sections.is_empty() {
@@ -88,6 +71,45 @@ pub fn format_rag_context(ctx: &RetrievalContext) -> Option<String> {
     } else {
         Some(sections.join("\n\n"))
     }
+}
+
+fn build_user_facts_section(facts: &[UserFact]) -> Option<String> {
+    if facts.is_empty() { return None; }
+    let mut s = String::from("## What You Know About This Person");
+    for fact in facts {
+        s.push_str(&format!("\n- [{}] {}", fact.fact_type, fact.content));
+    }
+    Some(s)
+}
+
+fn build_significant_turns_section(turns: &[SignificantTurn]) -> Option<String> {
+    if turns.is_empty() { return None; }
+    let mut s = String::from("## Relevant Past Moments");
+    for turn in turns {
+        s.push_str(&format!("\n- \"{}\" ({}, {})", turn.user_content, turn.signal_type, turn.talk_type));
+    }
+    Some(s)
+}
+
+fn build_session_summaries_section(summaries: &[SessionSummary]) -> Option<String> {
+    if summaries.is_empty() { return None; }
+    let mut s = String::from("## Previous Sessions");
+    for summary in summaries {
+        s.push_str(&format!(
+            "\n- [{}] {} (MI stage: {} -> {})",
+            summary.created_at, summary.summary, summary.mi_stage_start, summary.mi_stage_end
+        ));
+    }
+    Some(s)
+}
+
+fn build_mi_knowledge_section(knowledge: &[MiKnowledge]) -> Option<String> {
+    if knowledge.is_empty() { return None; }
+    let mut s = String::from("## MI Technique Guidance");
+    for k in knowledge {
+        s.push_str(&format!("\n- [{}] {}", k.category, k.content));
+    }
+    Some(s)
 }
 
 fn log_retrieval_err<T: Default>(table: &str, result: Result<T>) -> T {
@@ -187,7 +209,7 @@ mod tests {
     #[test]
     fn test_format_empty_context() {
         let ctx = RetrievalContext::default();
-        assert!(format_rag_context(&ctx).is_none());
+        assert!(format_rag_context(&ctx, 4000).is_none());
     }
 
     /// Verifies that retrieve_context on empty tables returns empty results without errors.
@@ -209,7 +231,7 @@ mod tests {
         assert!(ctx.session_summaries.is_empty());
         assert!(ctx.significant_turns.is_empty());
         assert!(ctx.mi_knowledge.is_empty());
-        assert!(format_rag_context(&ctx).is_none());
+        assert!(format_rag_context(&ctx, 4000).is_none());
     }
 
     #[test]
@@ -226,7 +248,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let formatted = format_rag_context(&ctx).unwrap();
+        let formatted = format_rag_context(&ctx, 4000).unwrap();
         assert!(formatted.contains("## What You Know About This Person"));
         assert!(formatted.contains("[goal] reduce drinking"));
         assert!(!formatted.contains("## Previous Sessions"));
@@ -273,7 +295,7 @@ mod tests {
         );
 
         // Format into RAG context
-        let formatted = format_rag_context(&ctx).expect("should produce formatted context");
+        let formatted = format_rag_context(&ctx, 4000).expect("should produce formatted context");
         assert!(formatted.contains("## What You Know About This Person"));
         assert!(formatted.contains("cut back on drinking"));
 
@@ -335,7 +357,7 @@ mod tests {
                 source: "mi_text_summary.md".into(),
             }],
         };
-        let formatted = format_rag_context(&ctx).unwrap();
+        let formatted = format_rag_context(&ctx, 4000).unwrap();
         assert!(formatted.contains("## What You Know About This Person"));
         assert!(formatted.contains("## Previous Sessions"));
         assert!(formatted.contains("## Relevant Past Moments"));
