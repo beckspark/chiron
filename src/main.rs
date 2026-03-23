@@ -109,6 +109,14 @@ struct Args {
     /// Default top-k results per RAG collection
     #[arg(long, default_value = "3")]
     rag_top_k: usize,
+
+    /// Delete all user data (SQLite + vectors) and re-seed MI knowledge, then start fresh
+    #[arg(long)]
+    reset: bool,
+
+    /// Path to MI knowledge markdown file for auto-seeding
+    #[arg(long, default_value = "data/mi_knowledge.md")]
+    mi_knowledge_path: PathBuf,
 }
 
 #[tokio::main]
@@ -297,10 +305,43 @@ async fn main() -> Result<()> {
 
     // --- Interactive mode ---
 
+    // Handle --reset: wipe user data and start fresh
+    if args.reset {
+        if std::path::Path::new(&args.db_path).exists() {
+            std::fs::remove_file(&args.db_path)
+                .with_context(|| format!("Failed to remove {}", args.db_path))?;
+            println!("Removed {}", args.db_path);
+        }
+        if std::path::Path::new(&args.lance_db_path).exists() {
+            std::fs::remove_dir_all(&args.lance_db_path)
+                .with_context(|| format!("Failed to remove {}", args.lance_db_path))?;
+            println!("Removed {}", args.lance_db_path);
+        }
+    }
+
     // Initialize vector store + embedding model
     let vector_conn = memory::vectors::open_vector_db(&args.lance_db_path).await?;
     memory::vectors::ensure_tables(&vector_conn).await?;
     let embedding_model = memory::embeddings::init_embedding_model();
+
+    // Auto-seed MI knowledge if table is empty and seed file exists
+    {
+        let table = vector_conn.open_table("mi_knowledge").execute().await?;
+        let count = table.count_rows(None).await?;
+        if count == 0 && args.mi_knowledge_path.exists() {
+            let content = std::fs::read_to_string(&args.mi_knowledge_path)
+                .with_context(|| format!("Failed to read {}", args.mi_knowledge_path.display()))?;
+            let entries = memory::seed::parse_markdown(&content);
+            if !entries.is_empty() {
+                let source = args.mi_knowledge_path
+                    .file_name()
+                    .map(|f| f.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
+                let seeded = memory::seed::seed_knowledge(&vector_conn, &embedding_model, &entries, &source).await?;
+                println!("Auto-seeded {seeded} MI knowledge entries from {}", args.mi_knowledge_path.display());
+            }
+        }
+    }
 
     let chat_conn = memory::open_memory(&args.db_path).await?;
 
