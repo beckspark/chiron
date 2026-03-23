@@ -3,6 +3,7 @@
 *.gguf
 /models/
 /data/
+!/data/mi_knowledge.md
 .fastembed_cache/
 *.db
 *.db-shm

@@ -611,13 +611,20 @@ impl Orchestrator {
                 async move {
                     match model.embed_text(&content).await {
                         Ok(embedding) => {
-                            if let Err(e) =
-                                crate::memory::vectors::add_user_fact(&vconn, &fact, &embedding.vec)
-                                    .await
+                            match crate::memory::vectors::upsert_user_fact(
+                                &vconn, &model, &fact, &embedding.vec,
+                            )
+                            .await
                             {
-                                tracing::warn!(error = %e, "Failed to store user fact");
-                            } else {
-                                tracing::info!(fact_type = fact.fact_type, "Stored user fact");
+                                Ok(crate::memory::vectors::UpsertResult::Inserted) => {
+                                    tracing::info!(fact_type = fact.fact_type, "Stored new user fact");
+                                }
+                                Ok(crate::memory::vectors::UpsertResult::Updated(id)) => {
+                                    tracing::info!(fact_type = fact.fact_type, matched_id = %id, "Updated existing user fact");
+                                }
+                                Err(e) => {
+                                    tracing::warn!(error = %e, "Failed to upsert user fact");
+                                }
                             }
                         }
                         Err(e) => tracing::warn!(error = %e, "Failed to embed user fact"),

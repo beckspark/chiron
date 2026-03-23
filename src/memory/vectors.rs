@@ -250,6 +250,67 @@ pub async fn add_user_fact(
     Ok(())
 }
 
+/// Result of an upsert operation on user facts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpsertResult {
+    /// A new fact was inserted.
+    Inserted,
+    /// An existing fact was updated (id of the matched fact).
+    Updated(String),
+}
+
+/// Cosine distance threshold for considering two user facts as duplicates.
+/// 0.20 corresponds to ~0.90 cosine similarity.
+const DEDUP_DISTANCE_THRESHOLD: f64 = 0.20;
+
+/// Upserts a user fact: inserts if no semantically similar fact with the same
+/// `fact_type` exists, otherwise updates `last_confirmed` and `updated_at` on
+/// the existing match.
+///
+/// Uses vector similarity search to find duplicates. A match is considered
+/// a duplicate if it has the same `fact_type` and cosine distance < threshold.
+pub async fn upsert_user_fact(
+    conn: &Connection,
+    model: &EmbeddingModel,
+    fact: &UserFact,
+    embedding: &[f64],
+) -> Result<UpsertResult> {
+    use rig::vector_store::VectorStoreIndex;
+
+    // Search for a similar existing fact
+    let index = vector_index(conn, "user_knowledge", model.clone()).await?;
+    let request =
+        rig::vector_store::request::VectorSearchRequest::<rig_lancedb::LanceDBFilter>::builder()
+            .query(&fact.content)
+            .samples(1)
+            .build()
+            .map_err(|e| anyhow::anyhow!("Failed to build dedup search request: {e}"))?;
+
+    let results: Vec<(f64, String, UserFact)> = index.top_n(request).await?;
+
+    // Check if top result is a close match with same fact_type
+    if let Some((distance, _, existing)) = results.first() {
+        if *distance < DEDUP_DISTANCE_THRESHOLD && existing.fact_type == fact.fact_type {
+            // Update existing fact's confirmation timestamps
+            let table = conn.open_table("user_knowledge").execute().await?;
+            table
+                .update()
+                .only_if(format!("id = '{}'", existing.id))
+                .column("last_confirmed", format!("'{}'", fact.last_confirmed))
+                .column("updated_at", format!("'{}'", fact.updated_at))
+                .execute()
+                .await
+                .context("Failed to update existing user fact")?;
+
+            return Ok(UpsertResult::Updated(existing.id.clone()));
+        }
+    }
+
+    // No close match — insert as new
+    add_user_fact(conn, fact, embedding).await?;
+    Ok(UpsertResult::Inserted)
+}
+
 /// Adds a session summary with its embedding.
 pub async fn add_session_summary(
     conn: &Connection,
@@ -510,5 +571,159 @@ mod tests {
             "Top result should be about drinking, got: {}",
             top_result.content
         );
+    }
+
+    #[tokio::test]
+    async fn test_upsert_insert_when_empty() {
+        use crate::memory::embeddings::init_embedding_model;
+        use rig::embeddings::EmbeddingModel as _;
+
+        let dir = tempfile::tempdir().unwrap();
+        let conn = open_vector_db(dir.path().to_str().unwrap()).await.unwrap();
+        ensure_tables(&conn).await.unwrap();
+
+        let model = init_embedding_model();
+        let embedding = model.embed_text("wants to quit drinking").await.unwrap();
+        let fact = UserFact {
+            id: uuid::Uuid::new_v4().to_string(),
+            fact_type: "goal".to_string(),
+            content: "wants to quit drinking".to_string(),
+            source_session: "session_1".to_string(),
+            last_confirmed: "session_1".to_string(),
+            created_at: "2026-03-23T00:00:00Z".to_string(),
+            updated_at: "2026-03-23T00:00:00Z".to_string(),
+        };
+
+        let result = upsert_user_fact(&conn, &model, &fact, &embedding.vec).await.unwrap();
+        assert_eq!(result, UpsertResult::Inserted);
+
+        let table = conn.open_table("user_knowledge").execute().await.unwrap();
+        assert_eq!(table.count_rows(None).await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_upsert_dedup_similar_content() {
+        use crate::memory::embeddings::init_embedding_model;
+        use rig::embeddings::EmbeddingModel as _;
+
+        let dir = tempfile::tempdir().unwrap();
+        let conn = open_vector_db(dir.path().to_str().unwrap()).await.unwrap();
+        ensure_tables(&conn).await.unwrap();
+
+        let model = init_embedding_model();
+
+        // Insert first fact
+        let emb1 = model.embed_text("wants to quit drinking alcohol").await.unwrap();
+        let fact1 = UserFact {
+            id: uuid::Uuid::new_v4().to_string(),
+            fact_type: "goal".to_string(),
+            content: "wants to quit drinking alcohol".to_string(),
+            source_session: "session_1".to_string(),
+            last_confirmed: "session_1".to_string(),
+            created_at: "2026-03-23T00:00:00Z".to_string(),
+            updated_at: "2026-03-23T00:00:00Z".to_string(),
+        };
+        let r1 = upsert_user_fact(&conn, &model, &fact1, &emb1.vec).await.unwrap();
+        assert_eq!(r1, UpsertResult::Inserted);
+
+        // Upsert similar fact — should dedup
+        let emb2 = model.embed_text("wants to stop drinking alcohol").await.unwrap();
+        let fact2 = UserFact {
+            id: uuid::Uuid::new_v4().to_string(),
+            fact_type: "goal".to_string(),
+            content: "wants to stop drinking alcohol".to_string(),
+            source_session: "session_2".to_string(),
+            last_confirmed: "session_2".to_string(),
+            created_at: "2026-03-23T01:00:00Z".to_string(),
+            updated_at: "2026-03-23T01:00:00Z".to_string(),
+        };
+        let r2 = upsert_user_fact(&conn, &model, &fact2, &emb2.vec).await.unwrap();
+        assert!(matches!(r2, UpsertResult::Updated(_)), "Expected Update, got {r2:?}");
+
+        // Still only 1 row
+        let table = conn.open_table("user_knowledge").execute().await.unwrap();
+        assert_eq!(table.count_rows(None).await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_upsert_no_dedup_different_fact_type() {
+        use crate::memory::embeddings::init_embedding_model;
+        use rig::embeddings::EmbeddingModel as _;
+
+        let dir = tempfile::tempdir().unwrap();
+        let conn = open_vector_db(dir.path().to_str().unwrap()).await.unwrap();
+        ensure_tables(&conn).await.unwrap();
+
+        let model = init_embedding_model();
+
+        // Insert as goal
+        let emb1 = model.embed_text("drinking is a big concern").await.unwrap();
+        let fact1 = UserFact {
+            id: uuid::Uuid::new_v4().to_string(),
+            fact_type: "goal".to_string(),
+            content: "drinking is a big concern".to_string(),
+            source_session: "session_1".to_string(),
+            last_confirmed: "session_1".to_string(),
+            created_at: "2026-03-23T00:00:00Z".to_string(),
+            updated_at: "2026-03-23T00:00:00Z".to_string(),
+        };
+        upsert_user_fact(&conn, &model, &fact1, &emb1.vec).await.unwrap();
+
+        // Upsert similar content but different fact_type — should NOT dedup
+        let emb2 = model.embed_text("drinking causes problems at work").await.unwrap();
+        let fact2 = UserFact {
+            id: uuid::Uuid::new_v4().to_string(),
+            fact_type: "trigger".to_string(),
+            content: "drinking causes problems at work".to_string(),
+            source_session: "session_2".to_string(),
+            last_confirmed: "session_2".to_string(),
+            created_at: "2026-03-23T01:00:00Z".to_string(),
+            updated_at: "2026-03-23T01:00:00Z".to_string(),
+        };
+        let r2 = upsert_user_fact(&conn, &model, &fact2, &emb2.vec).await.unwrap();
+        assert_eq!(r2, UpsertResult::Inserted);
+
+        let table = conn.open_table("user_knowledge").execute().await.unwrap();
+        assert_eq!(table.count_rows(None).await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_upsert_no_dedup_dissimilar_content() {
+        use crate::memory::embeddings::init_embedding_model;
+        use rig::embeddings::EmbeddingModel as _;
+
+        let dir = tempfile::tempdir().unwrap();
+        let conn = open_vector_db(dir.path().to_str().unwrap()).await.unwrap();
+        ensure_tables(&conn).await.unwrap();
+
+        let model = init_embedding_model();
+
+        let emb1 = model.embed_text("loves hiking in the mountains").await.unwrap();
+        let fact1 = UserFact {
+            id: uuid::Uuid::new_v4().to_string(),
+            fact_type: "interest".to_string(),
+            content: "loves hiking in the mountains".to_string(),
+            source_session: "session_1".to_string(),
+            last_confirmed: "session_1".to_string(),
+            created_at: "2026-03-23T00:00:00Z".to_string(),
+            updated_at: "2026-03-23T00:00:00Z".to_string(),
+        };
+        upsert_user_fact(&conn, &model, &fact1, &emb1.vec).await.unwrap();
+
+        let emb2 = model.embed_text("hates Monday morning meetings").await.unwrap();
+        let fact2 = UserFact {
+            id: uuid::Uuid::new_v4().to_string(),
+            fact_type: "interest".to_string(),
+            content: "hates Monday morning meetings".to_string(),
+            source_session: "session_2".to_string(),
+            last_confirmed: "session_2".to_string(),
+            created_at: "2026-03-23T01:00:00Z".to_string(),
+            updated_at: "2026-03-23T01:00:00Z".to_string(),
+        };
+        let r2 = upsert_user_fact(&conn, &model, &fact2, &emb2.vec).await.unwrap();
+        assert_eq!(r2, UpsertResult::Inserted);
+
+        let table = conn.open_table("user_knowledge").execute().await.unwrap();
+        assert_eq!(table.count_rows(None).await.unwrap(), 2);
     }
 }
