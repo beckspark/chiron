@@ -62,6 +62,10 @@ struct Args {
     #[arg(long)]
     script: Option<PathBuf>,
 
+    /// Seed MI knowledge base from a markdown file and exit.
+    #[arg(long)]
+    seed_knowledge: Option<PathBuf>,
+
     /// Path to SQLite database file for chat history + case notes
     #[arg(long, default_value = "chiron.db")]
     db_path: String,
@@ -182,6 +186,34 @@ async fn main() -> Result<()> {
         println!("\nChiron: {response}");
         println!("\n=== Benchmark Results ===");
         println!("Total agent.chat() time: {}ms", total.as_millis());
+        return Ok(());
+    }
+
+    // --- Seed knowledge mode: parse markdown, embed, store, exit ---
+    if let Some(knowledge_path) = &args.seed_knowledge {
+        let content = std::fs::read_to_string(knowledge_path)
+            .with_context(|| format!("Failed to read: {}", knowledge_path.display()))?;
+
+        let entries = memory::seed::parse_markdown(&content);
+        if entries.is_empty() {
+            eprintln!("No knowledge entries found in {}", knowledge_path.display());
+            return Ok(());
+        }
+
+        println!("Parsed {} knowledge entries from {}", entries.len(), knowledge_path.display());
+
+        let vector_conn = memory::vectors::open_vector_db(&args.lance_db_path).await?;
+        memory::vectors::ensure_tables(&vector_conn).await?;
+        let embedding_model = memory::embeddings::init_embedding_model();
+
+        let source = knowledge_path
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let count = memory::seed::seed_knowledge(&vector_conn, &embedding_model, &entries, &source).await?;
+        println!("Seeded {count} entries into mi_knowledge table");
+
         return Ok(());
     }
 
@@ -330,6 +362,14 @@ async fn main() -> Result<()> {
         if input.eq_ignore_ascii_case("reset") {
             orchestrator.reset();
             println!("Conversation reset.");
+            continue;
+        }
+
+        if input == "/end" {
+            let summary = orchestrator.end_session().await?;
+            println!("\n--- Session Summary ---");
+            println!("{summary}");
+            println!("--- New session started ---");
             continue;
         }
 

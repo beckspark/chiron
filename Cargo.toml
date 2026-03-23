@@ -18,6 +18,9 @@ arrow-array = "56"
 arrow-schema = "56"
 uuid = { version = "1", features = ["v4"] }
 
+# Timestamps
+chrono = { version = "0.4", features = ["serde"] }
+
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 

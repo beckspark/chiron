@@ -893,6 +893,7 @@ dependencies = [
  "anyhow",
  "arrow-array",
  "arrow-schema",
+ "chrono",
  "clap",
  "encoding_rs",
  "futures",

@@ -1,6 +1,7 @@
 pub mod case_notes;
 pub mod embeddings;
 pub mod retrieval;
+pub mod seed;
 pub mod vectors;
 
 use anyhow::{Context, Result};
