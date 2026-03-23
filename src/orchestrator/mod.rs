@@ -699,7 +699,7 @@ impl Orchestrator {
             self.maybe_create_checkpoint(&drained);
 
             self.chat_history.drain(..trim_count);
-            tracing::debug!(
+            tracing::info!(
                 kept = self.max_history_messages,
                 trimmed = trim_count,
                 "Sliding window trimmed chat history"
