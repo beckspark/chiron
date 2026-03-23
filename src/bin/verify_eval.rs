@@ -45,6 +45,7 @@ struct TurnResult {
     think_content: Option<String>,
     case_notes: Option<String>,
     expected_mode: Option<String>,
+    preamble_len: Option<usize>,
     #[allow(dead_code)]
     script_notes: String,
     #[allow(dead_code)]
@@ -139,24 +140,23 @@ fn check_case_notes_progression(eval: &EvalOutput, failures: &mut Vec<String>) {
     }
 }
 
-/// Themes from turn N must be a superset of themes from turn N-1.
-/// (Theme accumulation is a core invariant — themes never regress.)
+/// Theme count must stay bounded (max 8) across all turns.
+/// Older themes may age out as new ones arrive (recency-biased cap).
 fn check_theme_accumulation(eval: &EvalOutput, failures: &mut Vec<String>) {
-    let mut prev_themes: HashSet<String> = HashSet::new();
+    const MAX_THEMES: usize = 8;
 
     for turn in &eval.turns {
         let current_themes = extract_themes(turn.case_notes.as_deref());
 
-        for theme in &prev_themes {
-            if !current_themes.contains(theme) {
-                failures.push(format!(
-                    "Turn {}: theme '{}' regressed (present in previous turn, missing now)",
-                    turn.turn_number, theme
-                ));
-            }
+        if current_themes.len() > MAX_THEMES {
+            failures.push(format!(
+                "Turn {}: {} themes exceeds cap of {} — {}",
+                turn.turn_number,
+                current_themes.len(),
+                MAX_THEMES,
+                current_themes.iter().cloned().collect::<Vec<_>>().join(", ")
+            ));
         }
-
-        prev_themes = current_themes;
     }
 }
 
@@ -243,22 +243,20 @@ fn check_mode_detection(eval: &EvalOutput, failures: &mut Vec<String>) {
     }
 }
 
-/// Preamble should grow (or stay same) as case notes accumulate.
-/// Note: preamble_injected may not be present in older eval formats.
-fn check_preamble_growth(eval: &EvalOutput, _failures: &mut Vec<String>) {
-    // The current JSON format from --script doesn't include preamble_injected
-    // in the output (it's in TurnResult but not serialized to JSON).
-    // This check is a placeholder for when preamble is included.
-    // For now, case_notes length serves as a proxy.
-    let _lengths: Vec<usize> = eval
-        .turns
-        .iter()
-        .map(|t| t.case_notes.as_deref().unwrap_or("").len())
-        .collect();
+/// Preamble length must stay within the budget (1200 chars) across all turns.
+fn check_preamble_growth(eval: &EvalOutput, failures: &mut Vec<String>) {
+    const MAX_PREAMBLE_CHARS: usize = 1200;
 
-    // Not asserting monotonicity here because case notes can shrink
-    // (e.g., strategy line present in one turn but not the next).
-    // The important invariant (theme accumulation) is checked separately.
+    for turn in &eval.turns {
+        if let Some(len) = turn.preamble_len {
+            if len > MAX_PREAMBLE_CHARS {
+                failures.push(format!(
+                    "Turn {}: preamble_len {} exceeds budget of {}",
+                    turn.turn_number, len, MAX_PREAMBLE_CHARS
+                ));
+            }
+        }
+    }
 }
 
 /// Extracts themes from case notes "Running Themes: a, b, c" line.

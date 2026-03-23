@@ -274,6 +274,7 @@ async fn main() -> Result<()> {
                 "response": result.response,
                 "think_content": result.think_content,
                 "case_notes": result.case_notes,
+                "preamble_len": result.preamble_injected.len(),
                 "expected_mode": turn.expected_mode,
                 "script_notes": turn.notes,
                 "duration_ms": result.duration_ms,
