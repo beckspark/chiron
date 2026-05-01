@@ -1,11 +1,11 @@
 [package]
 name = "chiron"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
 # LLM inference via llama.cpp
-llama-cpp-2 = "0.1.139"
+llama-cpp-2 = "0.1.140"
 
 # Agent framework
 rig-core = "0.33"
@@ -43,7 +43,7 @@ tokio-stream = "0.1"
 
 # Database (chat history + case notes)
 tokio-rusqlite = "0.6"
-rusqlite = "0.32"
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 # UTF-8 decoding for llama.cpp token output
 encoding_rs = "0.8"
