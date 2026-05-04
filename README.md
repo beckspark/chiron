@@ -105,8 +105,7 @@ cargo build --release
 cargo build --release --features cuda
 
 # Apple Metal
-brew install cmake
-brew install rust
+brew install cmake protobuf rust
 cargo build --release --features metal
 
 # AMD ROCm
